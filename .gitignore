@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.env
+
+# Derleme çıktıları
+build/
+dist/
+packaging/version_info.txt
+packaging/version.iss
+*.spec.bak
+
+# Editör / sistem
+.vscode/
+.idea/
+*.swp
+Thumbs.db
+desktop.ini
+.DS_Store
+.claude/
+
+# Kişisel veri asla depoya girmesin
+data.json
+data-*.json
+preferences.json
