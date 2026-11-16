@@ -1,8 +1,8 @@
-"""Veri deposu: tüm kayıtlar tek JSON dosyasında (%LOCALAPPDATA%\\alpha\\data.json).
+"""Veri deposu: tüm kayıtlar tek JSON dosyasında (config.DATA_FILE: Documents\\alpha\\data.json).
 
 Koleksiyonlar (her kayıt bir dict, "id" alanı otomatik):
-  tasks        yapılacaklar   title, category, due, time, priority, done, done_at, note
-  routine      haftalık program title, category, days[0-6], start, end, place
+  tasks        yapılacaklar   title, category, due, time, end, priority, done, done_at, note
+  routine      haftalık program title, category, days[0-6], start, end, place, from, until (tarih aralığı), skip[iso] (o gün yok)
   courses      dersler        name, code, credits, target (harf), note, study_days[iso] (çalışma kareleri)
   exams        sınav/ödev     course, name, date, weight, target, score
   workouts     antrenman      date, kind, focus, minutes, note
@@ -16,26 +16,65 @@ Koleksiyonlar (her kayıt bir dict, "id" alanı otomatik):
   days         günlük plan    date, intention, planned_at
   habits       alışkanlık     name, category, goal (haftada gün), note, days[iso]
   meals        beslenme       date, name, kcal, protein, carbs, fat
+  accounts     nakit / hesap  name, balance, note
+  recurring    sabit gelir/gider name, kind(income|expense), amount, day (ayın kaçı, boşsa 1), category, active, note
+  goals        hayat hedefleri title, area (LIFE_AREAS; eski kategori değerleri life_area ile eşlenir), horizon (life|y10|y3|year|term|action), parent (goal id),
+               due, progress (%; boşsa alt hedeflerden), image (DATA_DIR\\images içindeki dosya adı),
+               links["habits:id" | "courses:id" | "projects:id"], days[iso] (elle "bugün çalıştım"), done, note,
+               order, sample (örnek veri)
+  wheel        hayat çarkı   month (YYYY-MM), scores {hayat alanı: 1-10}, sample
 """
 import copy
 import json
 import os
 import shutil
+import time
 import uuid
 from datetime import date, datetime, timedelta
 
 from PyQt6.QtCore import QObject, pyqtSignal, QTimer
 
+from .config import day_today
 from .config import DATA_FILE, BACKUP_DIR
 
 COLLECTIONS = ("tasks", "routine", "courses", "exams", "workouts", "projects", "events", "birthdays",
-               "transactions", "debts", "investments", "notes", "days", "habits", "meals")
+               "transactions", "debts", "investments", "notes", "days", "habits", "meals", "accounts",
+               "recurring", "goals", "wheel")
 
 CATEGORIES = ("education", "work", "sport", "social", "finance", "personal")
 
+# hayat alanları (hedefler + hayat çarkı): görev kategorilerinden ayrı, daha ince
+#   education  dersler, notlar, sınavlar, CAD, İngilizce, Almanca
+#   career     staj, iş bulma, aday mühendislik, bağlantılar
+#   venture    kendi işini kurma
+#   body · mind · finance · growth (kişisel gelişim ve keyif)
+LIFE_AREAS = ("education", "career", "venture", "body", "mind", "finance", "growth")
+# eski (kategori anahtarlı) kayıtlar okunurken eşlenir; veri yeniden yazılmaz
+AREA_ALIAS = {"work": "career", "sport": "body", "social": "growth", "personal": "growth"}
+
+
+def life_area(v):
+    v = v or "growth"
+    v = AREA_ALIAS.get(v, v)
+    return v if v in LIFE_AREAS else "growth"
+
+
+def life_scores(scores):
+    """Çark puanları: eski anahtarlar yeni alana (aynı alana iki eski anahtar düşerse büyüğü)."""
+    exact, old = {}, {}
+    for k, v in (scores or {}).items():
+        if not v:
+            continue
+        a = life_area(k)
+        if k == a:
+            exact[a] = v                       # yeni anahtarla verilmiş puan her zaman geçerli
+        else:
+            old[a] = max(old.get(a, 0), v)
+    return {**old, **exact}
+
 
 def today() -> date:
-    return date.today()
+    return day_today()          # mantıksal gün (config.day_end_hour)
 
 
 def parse_date(s):
@@ -64,9 +103,32 @@ class Store(QObject):
         self._timer.setInterval(400)
         self._timer.timeout.connect(self.flush)
         self._dirty = False
+        # dosya dışarıdan değişirse (elle düzenleme, başka bir alpha) kaydedilmemiş değişiklik yoksa yeniden oku
+        self._watch = QTimer(self)
+        self._watch.setInterval(3000)
+        self._watch.timeout.connect(self.check_external)
+        self._watch.start()
 
     # ------------------------------------------------------------ dosya
+    def _disk_mtime(self):
+        try:
+            return os.path.getmtime(self.path)
+        except OSError:
+            return None
+
+    def check_external(self):
+        """Disktaki data.json bizim son okuduğumuz / yazdığımızdan farklıysa ve bekleyen kayıt yoksa yeniden yükle."""
+        m = self._disk_mtime()
+        if m is None or m == self._mtime or self._dirty:
+            return False
+        self.data = {c: [] for c in COLLECTIONS}
+        self._load()
+        for c in COLLECTIONS:
+            self.changed.emit(c)
+        return True
+
     def _load(self):
+        self._mtime = self._disk_mtime()
         try:
             with open(self.path, "r", encoding="utf-8") as f:
                 loaded = json.load(f)
@@ -84,12 +146,14 @@ class Store(QObject):
                 v = loaded.get(c)
                 if isinstance(v, list):
                     self.data[c] = [x for x in v if isinstance(x, dict)]
+            # bu sürümün tanımadığı bölümler (daha yeni bir alpha yazmış olabilir) olduğu gibi korunur
+            self._extra = {k: v for k, v in loaded.items() if k not in COLLECTIONS}
         self._daily_backup()
 
     def _daily_backup(self):
         """Günde bir kez data.json'un kopyası (son 14 gün tutulur)."""
         try:
-            name = f"data-{date.today():%Y-%m-%d}.json"
+            name = f"data-{day_today():%Y-%m-%d}.json"
             dst = os.path.join(BACKUP_DIR, name)
             if not os.path.exists(dst) and os.path.exists(self.path):
                 shutil.copy2(self.path, dst)
@@ -103,17 +167,22 @@ class Store(QObject):
         if not self._dirty:
             return
         tmp = self.path + ".tmp"
-        try:
-            with open(tmp, "w", encoding="utf-8") as f:
-                json.dump(self.data, f, ensure_ascii=False, indent=1)
-            os.replace(tmp, self.path)
-            self._dirty = False
-        except OSError:
-            pass
+        # Belgeler OneDrive'daysa eşitleme dosyayı bir anlığına kilitleyebilir: birkaç kez dene, olmazsa sonra yine dene
+        for attempt in range(4):
+            try:
+                with open(tmp, "w", encoding="utf-8") as f:
+                    json.dump({**getattr(self, "_extra", {}), **self.data}, f, ensure_ascii=False, indent=1)
+                os.replace(tmp, self.path)
+                self._mtime = self._disk_mtime()
+                self._dirty = False
+                return
+            except OSError:
+                time.sleep(0.15 * (attempt + 1))
+        self._timer.start(2000)
 
     def _touch(self, coll):
         self._dirty = True
-        self._timer.start()
+        self._timer.start(400)
         self.changed.emit(coll)
 
     # ------------------------------------------------------------ CRUD
@@ -156,6 +225,18 @@ class Store(QObject):
                             self.data["exams"].pop(j)
                             removed.append(("exams", j, e))
                     self._touch("exams")
+                if coll == "goals":     # alt hedefler de gider (geri al hepsini döndürür)
+                    kill = {item_id}
+                    grew = True
+                    while grew:
+                        grew = False
+                        for g in lst:
+                            if g.get("parent") in kill and g.get("id") not in kill:
+                                kill.add(g.get("id"))
+                                grew = True
+                    for j in range(len(lst) - 1, -1, -1):
+                        if lst[j].get("id") in kill:
+                            removed.append((coll, j, lst.pop(j)))   # silme sırası: restore tersten ekler
                 self._touch(coll)
                 return removed
         return []
@@ -223,8 +304,12 @@ class Store(QObject):
         return sorted(out, key=_task_key)
 
     def routine_for(self, d: date, category=None):
+        """O gün tekrar eden saatler. "from" / "until" (isteğe bağlı tarih) dışındaki günlerde yok."""
         wd = d.weekday()
-        out = [r for r in self.data["routine"] if wd in (r.get("days") or [])]
+        out = [r for r in self.data["routine"] if wd in (r.get("days") or [])
+               and not (parse_date(r.get("from")) and d < parse_date(r.get("from")))
+               and not (parse_date(r.get("until")) and d > parse_date(r.get("until")))
+               and d.isoformat() not in (r.get("skip") or [])]
         if category:
             out = [r for r in out if r.get("category") == category]
         return sorted(out, key=lambda r: r.get("start") or "99:99")
@@ -327,6 +412,25 @@ class Store(QObject):
                 out.append(w)
         return out
 
+    def sport_break(self):
+        """Spora ara: (başlangıç, bitiş) ya da None. prefs sport_break = {"from", "until", "note"}."""
+        from .config import prefs
+        br = prefs.get("sport_break") or {}
+        a, z = parse_date(br.get("from")), parse_date(br.get("until"))
+        if a is None or z is None or z < a:
+            return None
+        return a, z
+
+    def sport_goal(self, ws):
+        """O haftanın hedefi: aradaki günler kadar orantılı düşer; 0 = ara haftası (seriyi bozmaz)."""
+        from .config import prefs
+        goal = max(1, min(7, int(_num(prefs.get("sport_weekly_goal", 4)) or 4)))
+        br = self.sport_break()
+        if not br:
+            return goal
+        off = sum(1 for i in range(7) if br[0] <= ws + timedelta(days=i) <= br[1])
+        return int(round(goal * (7 - off) / 7)) if off else goal
+
     def sport_days(self, a: date, b: date):
         return {parse_date(w.get("date")) for w in self.workouts_between(a, b)}
 
@@ -352,6 +456,28 @@ class Store(QObject):
             else:
                 owe += _num(d.get("amount"))
         return owe, owed
+
+    def cash_total(self):
+        return sum(_num(a.get("balance")) for a in self.data["accounts"])
+
+    def recurring_between(self, a, b):
+        """(a, b] aralığına düşen sabit gelir / giderler: [(tarih, kayıt)], sıralı. Gün boşsa ayın 1'i."""
+        import calendar
+        out = []
+        for r in self.data["recurring"]:
+            if r.get("active") is False:
+                continue
+            try:
+                day = int(_num(r.get("day")) or 1)
+            except (TypeError, ValueError):
+                day = 1
+            y, m = a.year, a.month
+            while (y, m) <= (b.year, b.month):
+                d = date(y, m, max(1, min(day, calendar.monthrange(y, m)[1])))
+                if a < d <= b:
+                    out.append((d, r))
+                y, m = (y + 1, 1) if m == 12 else (y, m + 1)
+        return sorted(out, key=lambda x: x[0])
 
     def investment_totals(self):
         inv = val = 0.0
@@ -379,6 +505,97 @@ class Store(QObject):
         avg = tot / tot_w if tot_w else None
         tavg = tt / tw if tw else None
         return avg, tot_w, tavg
+
+    # ------------------------------------------------------------ hayat hedefleri
+    def goal_children(self, parent_id):
+        out = [g for g in self.data["goals"] if (g.get("parent") or None) == (parent_id or None)]
+        return sorted(out, key=lambda g: (_num(g.get("order")), g.get("created") or ""))
+
+    def goal_roots(self):
+        ids = {g.get("id") for g in self.data["goals"]}
+        out = [g for g in self.data["goals"] if not g.get("parent") or g.get("parent") not in ids]
+        return sorted(out, key=lambda g: (_num(g.get("order")), g.get("created") or ""))
+
+    def goal_descendants(self, goal_id):
+        out, stack, seen = [], [goal_id], {goal_id}
+        while stack:
+            for c in self.goal_children(stack.pop()):
+                if c["id"] not in seen:
+                    seen.add(c["id"])
+                    out.append(c)
+                    stack.append(c["id"])
+        return out
+
+    def link_item(self, link):
+        """"habits:abc" → (koleksiyon, kayıt) ya da (None, None)."""
+        coll, _, iid = str(link or "").partition(":")
+        if coll not in ("habits", "courses", "projects"):
+            return None, None
+        x = self.get(coll, iid)
+        return (coll, x) if x is not None else (None, None)
+
+    def link_days(self, link):
+        """Bağlı kaydın etkinlik günleri: alışkanlık kareleri, ders çalışma günleri, projenin biten görevleri yok."""
+        coll, x = self.link_item(link)
+        if x is None:
+            return set()
+        if coll == "habits":
+            return day_set(x.get("days"))
+        if coll == "courses":
+            return day_set(x.get("study_days"))
+        return set()
+
+    def goal_days(self, goal, deep=True):
+        """Hedefin (ve alt hedeflerinin) etkinlik günleri: elle işaretlenenler + bağlı kayıtlar."""
+        goals = [goal] + (self.goal_descendants(goal["id"]) if deep else [])
+        out = set()
+        for g in goals:
+            out |= day_set(g.get("days"))
+            for ln in g.get("links") or []:
+                out |= self.link_days(ln)
+        return out
+
+    def goal_activity(self, goal, td=None, window=30):
+        """(son `window` gündeki etkin gün sayısı, son etkin gün ya da None)."""
+        td = td or today()
+        days = self.goal_days(goal)
+        a = td - timedelta(days=window - 1)
+        n = sum(1 for d in days if a <= d <= td)
+        past = [d for d in days if d <= td]
+        return n, (max(past) if past else None)
+
+    def goal_progress(self, goal, _depth=0):
+        """0-1 arası: bitti → 1; elle girilen % varsa o; yoksa alt hedeflerin / bağlı projelerin ortalaması."""
+        if goal.get("done"):
+            return 1.0
+        p = goal.get("progress")
+        if p not in (None, ""):
+            return max(0.0, min(1.0, _num(p) / 100.0))
+        parts = []
+        if _depth < 8:
+            parts += [self.goal_progress(c, _depth + 1) for c in self.goal_children(goal["id"])]
+        for ln in goal.get("links") or []:
+            coll, x = self.link_item(ln)
+            if coll == "projects":
+                parts.append(1.0 if x.get("status") == "done" else max(0.0, min(1.0, _num(x.get("progress")) / 100)))
+        return sum(parts) / len(parts) if parts else 0.0
+
+    def wheel_for(self, month):
+        for w in self.data["wheel"]:
+            if w.get("month") == month:
+                return w
+        return None
+
+    def set_wheel(self, month, area, score):
+        w = self.wheel_for(month)
+        if w is None:
+            w = self.add("wheel", {"month": month, "scores": {}})
+        scores = life_scores(w.get("scores"))
+        if score:
+            scores[area] = int(score)
+        else:
+            scores.pop(area, None)
+        self.update("wheel", w["id"], scores=scores)
 
 
 def _num(v):

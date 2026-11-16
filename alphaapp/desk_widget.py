@@ -5,12 +5,13 @@ Sağ tık menüsünden "her zaman üstte" yapılabilir, saydamlık ve bölümler
 """
 import ctypes
 from ctypes import wintypes
-from datetime import date, datetime, timedelta
+from datetime import datetime, timedelta
 
 from PyQt6.QtCore import Qt, QTimer, QRectF, QPoint, pyqtSignal
 from PyQt6.QtGui import QPainter, QAction, QActionGroup, QGuiApplication, QColor
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QMenu
 
+from .config import day_today
 from .components import Row, ProgressBar, ElideLabel, _clear_layout
 from .config import prefs
 from .forms import edit_item
@@ -224,7 +225,7 @@ class DeskWidget(QWidget):
     def refresh(self):
         self._pending = False
         s = self.store
-        td = date.today()
+        td = day_today()
         now = datetime.now()
         hm = now.strftime("%H:%M")
         self.title.setText(t("today") + ", " + WEEKDAYS_LONG()[td.weekday()])
@@ -290,8 +291,8 @@ class DeskWidget(QWidget):
                     self.body.addWidget(r)
 
         if "sport" in on:
-            goal = max(1, int(prefs.get("sport_weekly_goal", 4)))
             ws = week_start(td)
+            goal = s.sport_goal(ws) or max(1, int(prefs.get("sport_weekly_goal", 4)))
             n = len(s.sport_days(ws, ws + timedelta(days=6)))
             self._label(t("desk_sport", n=n, g=goal).upper())
             box = QWidget()
@@ -312,7 +313,7 @@ def today_agenda(s, td):
                         sub=r.get("place") or t("cat_" + (r.get("category") or "personal")), coll="routine", item=r))
     for tk in s.all("tasks"):
         if not tk.get("done") and parse_date(tk.get("due")) == td and tk.get("time"):
-            out.append(dict(start=tk["time"], end="", title=tk.get("title", ""),
+            out.append(dict(start=tk["time"], end=tk.get("end") or "", title=tk.get("title", ""),
                             sub=t("cat_" + (tk.get("category") or "personal")), coll="tasks", item=tk))
     for ev in s.all("events"):
         if parse_date(ev.get("date")) == td:

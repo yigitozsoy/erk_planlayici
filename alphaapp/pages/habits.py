@@ -1,9 +1,10 @@
 """Alışkanlıklar: her alışkanlık için GitHub tarzı kareler, bugünün işaret listesi, seri / haftalık hedef."""
-from datetime import date, timedelta
+from datetime import timedelta
 
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QHBoxLayout, QVBoxLayout, QLabel, QPushButton, QWidget
 
+from ..config import day_today
 from ..components import Page, Card, Row, StatTile, TileGrid, DayGrid
 from ..forms import edit_item, bind_row, item_menu
 from ..i18n import t, WEEKDAYS_SHORT, MONTHS_SHORT
@@ -61,7 +62,7 @@ class HabitsPage(Page):
         self.add(self.cards_host)
 
     def refresh(self):
-        s, win, td = self.store, self.win, date.today()
+        s, win, td = self.store, self.win, day_today()
         habits = sorted(s.all("habits"), key=lambda h: (h.get("created") or "", h.get("name") or ""))
 
         # --- bugün: işaret listesi
@@ -103,6 +104,43 @@ class HabitsPage(Page):
                 w.deleteLater()
         for h in habits:
             self.cards_v.addWidget(self._habit_card(h, td))
+        courses = sorted(s.all("courses"), key=lambda c: c.get("name") or "")
+        if courses:
+            title = QLabel(t("study_section"))
+            title.setObjectName("SubTitle")
+            title.setContentsMargins(4, 8, 0, 0)
+            self.cards_v.addWidget(title)
+            for c in courses:
+                self.cards_v.addWidget(self._study_card(c, td))
+
+    def _study_card(self, c, td):
+        s, win = self.store, self.win
+        days = day_set(c.get("study_days"))
+        ws = week_start(td)
+        week_n = sum(1 for d in days if ws <= d <= ws + timedelta(days=6))
+        cur, best = streaks(days, td)
+        card = Card(c.get("name") or "—", t("study_info", w=week_n, s=cur, n=len(days)))
+        icon_btn = IconButton("cat_education", t("cat_education"), 32, 20, role="text2")
+        icon_btn.setEnabled(False)
+        card.head.insertWidget(0, icon_btn, 0, Qt.AlignmentFlag.AlignTop)
+        done = td in days
+        b = QPushButton(t("study_done_today") if done else t("study_today"))
+        b.setObjectName("Chip")
+        b.setCheckable(True)
+        b.setChecked(done)
+        b.setCursor(Qt.CursorShape.PointingHandCursor)
+        b.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        b.clicked.connect(lambda _=False, cid=c["id"]: s.toggle_day("courses", cid, td, "study_days"))
+        card.head_widget(b)
+        more = IconButton("more_vert", t("course_menu"), 32, 20)
+        more.clicked.connect(lambda _=False, m=more: item_menu(win, "courses", c, m.mapToGlobal(m.rect().bottomLeft())))
+        card.head_widget(more)
+        grid = DayGrid(WEEKDAYS_SHORT(), MONTHS_SHORT())
+        grid.set_days(days)
+        grid.day_toggled.connect(lambda d, cid=c["id"]: s.toggle_day("courses", cid, d, "study_days"))
+        card.add(grid)
+        card.grid = grid
+        return card
 
     def _habit_card(self, h, td):
         s, win = self.store, self.win

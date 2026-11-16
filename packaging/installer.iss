@@ -38,8 +38,8 @@ Name: "turkish"; MessagesFile: "compiler:Languages\Turkish.isl"
 Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [CustomMessages]
-turkish.KeepData=Verileriniz (%LOCALAPPDATA%\alpha) kaldırmada silinmez.
-english.KeepData=Your data (%LOCALAPPDATA%\alpha) is kept when uninstalling.
+turkish.KeepData=Kayıtlarınız (Belgeler\alpha) kaldırmada silinmez.
+english.KeepData=Your data (Documents\alpha) is kept when uninstalling.
 
 [Tasks]
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"

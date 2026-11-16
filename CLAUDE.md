@@ -16,14 +16,28 @@ powershell -ExecutionPolicy Bypass -File packaging\build.ps1   # build\dist\alph
 ```
 Masaüstü kısayolu `build\dist\alpha\alpha.exe`'yi açar (pythonw ile görev çubuğu / Görev Yöneticisi "Python"
 gösteriyordu). Kullanıcıya görünen bir değişiklikten sonra exe'yi yeniden derle. Tek örnek kilidi (QLocalServer adı)
-veri klasörünün crc32'sine bağlı: geçici LOCALAPPDATA ile açılan test exe'si gerçek alpha'ya bağlanmaz.
-Test `LOCALAPPDATA`'yı geçici klasöre çevirir, offscreen çizer (`QT_QPA_FONTDIR` = Windows\Fonts, yoksa yazılar kutu
-çıkar). Kendi betiklerinde de gerçek `%LOCALAPPDATA%\alpha`'ya yazma.
+veri klasörünün (DATA_DIR) crc32'sine bağlı: geçici ALPHA_DATA_DIR ile açılan test exe'si gerçek alpha'ya bağlanmaz.
+**Veri yerleri (2.0):** kayıtlar + hedef görselleri (images) + yedekler yerel `%USERPROFILE%\Documents\alpha`
+(OneDrive DIŞI — kullanıcı OneDrive istemedi; `ALPHA_DATA_DIR` ezer). Tercihler + error.log `%LOCALAPPDATA%\alpha`
+(APP_DIR). İlk açılışta eski yerden bir kez kopyalanır (config.migrate_old_data → _migrate_from; eskisi silinmez):
+önce OneDrive\Belgeler\alpha (data.json + backups + images), yoksa 1.x'in %LOCALAPPDATA%\alpha'sı.
+Kullanıcı kurulu sürümü (`%LOCALAPPDATA%\Programs\alpha\alpha.exe`, installer) çalıştırıyor.
+Testte LOCALAPPDATA değiştirince `python` (py launcher) bozuluyor: tam yol
+`%LOCALAPPDATA%\Python\pythoncore-3.14-64\python.exe`'yi değişkeni değiştirmeden önce al.
+**Web (web.py):** telefondan bakmak için gündemin anlık görüntüsü (dün..+30 gün program, geciken/tarihsiz işler,
+yaklaşanlar) `https://yigitozsoy.net/api/alpha.php`'ye gider. Hedef / vision board / not / ekonomi kaydı ASLA
+gitmez (kullanıcı kesin istemedi; smoke testi denetler). Site çıplak alan adını www.'ya 301'ler (POST kaybolur):
+adres `https://www.yigitozsoy.net/api/alpha.php`; WebSync yönlendirmede adresi kendisi günceller. Anahtar prefs web_key, X-Alpha-Key başlığı; sunucuda yalnızca
+sha256'sı (`api/_alpha_key.php`). Sayfa: site klasöründe `alpha/index.html` (salt okunur, anahtar #k= ile bir kez gelir,
+localStorage'da önbellek). Site: `Desktop\yigitozsoy.net` (Apache + PHP, git yok, kullanıcı elle yükler).
+Test `LOCALAPPDATA` **ve** `ALPHA_DATA_DIR`'ı geçici klasöre çevirir, offscreen çizer (`QT_QPA_FONTDIR` =
+Windows\Fonts, yoksa yazılar kutu çıkar). Kendi betiklerinde ikisini de ayarla: yalnızca LOCALAPPDATA verirsen gerçek
+Belgeler\alpha'ya yazarsın.
 
 ## Yapı
 ```
 alphaapp/
-  app.py          tek örnek (QLocalServer), dil/yerel ayar, excepthook (hata → %LOCALAPPDATA%\alpha\error.log)
+  app.py          tek örnek (QLocalServer), dil/yerel ayar, excepthook (hata → APP_DIR\error.log)
   config.py       yollar, Prefs (preferences.json)
   store.py        tüm veriler tek JSON (data.json), 400 ms gecikmeli kayıt, günlük yedek (backups/, 14 gün),
                   sorgular: deadlines(), routine_for(), month_totals(), course_average() …
@@ -36,12 +50,39 @@ alphaapp/
                   ders kartlarında çalışma günleri (courses.study_days); seri: store.streaks(). Form kaydı birleştirir,
                   gün listelerini silmez. Spor'da beslenme: meals koleksiyonu + prefs goal_kcal/protein/carbs/fat,
                   sık yenen çipleri components.FlowLayout ile satıra sarılır.
+  sürüm 2         Program: her kayıt ayrı kutu (schedule.Block; important → #BlockImportant kırmızı: routine/events
+                  "important", görev priority=high, puansız sınav, proje deadline'ı). Formda kategori = ikon düğmeleri
+                  (forms.CategoryPicker, tür "cats"). prefs show_place=False → schema() "place" alanını çıkarır
+                  (kayıtlı yer silinmez), programda konum yazmaz. prefs habits_in_schedule → alışkanlıklar programda
+                  (habits.weekdays boşsa her gün, time isteğe bağlı; tıkla = o günü işaretle).
+                  QDialog QPushButton'da min-width: 64px var; dialog içi küçük düğmelerde ez.
+  pages/goals.py  Hedefler: goals ağacı (parent, horizon, links "habits:id"/"courses:id"/"projects:id", image) +
+                  wheel (aylık 1-10). İki sekme: Pinterest tarzı vision board (BoardView, masonry, görsel
+                  Ctrl+V / sürükle-bırak → DATA_DIR\images) ve çark + yol haritası. 9×9 ızgara ve 3B hedef ağı
+                  denendi, kullanıcı beğenmedi (kaldırıldı). "Örnek hedeflerle doldur" sample=True kayıtlar ekler.
+                  Hayat alanları (store.LIFE_AREAS, görev kategorilerinden ayrı): eğitim (ders, CAD, dil), kariyer
+                  (staj, iş bulma, bağlantılar), iş = kendi işini kurma, beden, zihin, ekonomi, kişisel gelişim.
+                  Aile / arkadaş alanı istenmedi. Eski kategori değerleri life_area / life_scores ile okunurken eşlenir.
+                  Denge (eski "hayat çarkı"): elle puan YOK (kullanıcı istemedi), örümcek ağı grafiği de beğenilmedi.
+                  balance.area_report() her alanı verilerden 0-10 puanlar (parçalar + "nereden geldi" metni),
+                  history() son 6 ay; BalanceView alan kartları (puan, değişim, çizgi, parçalar) + özet kartı.
+  görev → sınav   Görev formunda (yeni kayıt) kategori Eğitim iken "Sınav / teslim" satırı (FormDialog._exam_row):
+                  açılırsa kayıt exams'e gider (ders + tür forms.guess_exam ile başlıktan tahmin; time/end/note da
+                  sınava yazılır). Eğitim görevlerinin sağ tık menüsünde "Sınavlara taşı" (pages.task_to_exam).
+  dialogs.py      Seçenekler: solda kategoriler (Genel, Bugün ve program, Hatırlatıcılar, Spor ve beslenme,
+                  Masaüstü widget'ı, Telefonda aç, Veriler, Hakkında), sağda QStackedWidget. category()/section().
+  web sayfası     site klasöründe alpha/index.html masaüstü temasının (theme.py renkleri, Card/Row/Block,
+                  MonthCalendar) birebir HTML kopyası: yalnızca Bugün + Haftalık program. Metinler, ikon yolları,
+                  hafta/ay adları anlık görüntüyle (web.build_snapshot v2: days[blocks, prog], tasks, deadlines, cal,
+                  str, icons) gelir. Masaüstünde bu iki sayfa değişirse web.py + index.html'i de güncelle.
   window.py       çerçevesiz pencere + Snap (delta'dan), sol menü, hızlı ekle (Ctrl+N)
   pages/          today, schedule, habits, education, work, sport, social, finance, notes
   pages/plan.py   sabah planı (menüde yok, "plan" anahtarı): 1 dünden kalanlar (karar çipleri, İleri'de uygulanır + geri al)
                   2 bugün 3 odak (task.focus = bugünün iso'su, en fazla 3) + günün hedefi ("days" koleksiyonu) 4 hazır.
                   win.open_plan() / maybe_plan(): öğleden önce ilk açılışta, prefs last_plan/plan_skipped/morning_plan.
-                  "plan" hiçbir zaman last_page olmaz; prefs değişince Bugün'ü mark_dirty() ile yenile.
+                  2.0: dünün özeti (StatTile'lar), ilerleme çubuğu, 1. adımda 1-5/Del/↑↓/Enter kısayolları (QShortcut,
+                  yalnızca adım 0'da etkin — yazı alanları yutulmasın), 2. adımda timeline.DayTimeline (boşluğa tıkla →
+                  saatsiz bir işi o saate koy). "plan" hiçbir zaman last_page olmaz; prefs değişince Bugün'ü mark_dirty() ile yenile.
   desk_widget.py  masaüstü widget'ı (Tool + çerçevesiz + saydam). "bottom" kipinde WM_WINDOWPOSCHANGING ile hep
                   en altta tutulur; "top" kipinde her zaman üstte. Yer/saydamlık/bölümler prefs'te (desk_*).
 ```

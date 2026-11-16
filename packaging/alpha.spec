@@ -7,7 +7,7 @@ import os
 ROOT = os.path.abspath(os.path.join(SPECPATH, ".."))
 
 datas = [(os.path.join(ROOT, "alphaapp", "assets"), os.path.join("alphaapp", "assets"))]
-hiddenimports = ["PyQt6.QtSvg", "PyQt6.QtNetwork"]
+hiddenimports = ["PyQt6.QtSvg", "PyQt6.QtNetwork", "winsound", "wave"]
 
 EXCLUDES = [
     "tkinter", "unittest", "pydoc", "test", "lib2to3", "matplotlib", "scipy", "pandas", "numpy", "IPython",

@@ -4,9 +4,10 @@ from datetime import date
 
 from PyQt6.QtWidgets import QHBoxLayout, QLabel, QWidget
 
+from ..config import day_today, prefs
 from ..components import Page, Card, Row, StatTile, TileGrid, BarChart, HBars, ChipBar
 from ..forms import edit_item, bind_row
-from ..i18n import t, fmt_money, fmt_day, fmt_month, due_badge, MONTHS_SHORT, fmt_num
+from ..i18n import t, fmt_money, fmt_day, fmt_day_month, fmt_month, due_badge, MONTHS_SHORT, fmt_num
 from ..store import parse_date, num
 from ..widgets import IconButton
 
@@ -23,7 +24,7 @@ class FinancePage(Page):
         self.action(t("add_income"), lambda: edit_item(win, "transactions", preset={"kind": "income",
                                                                                    "category": "Maaş"}))
         self.action(t("add_expense"), lambda: edit_item(win, "transactions"), primary=True, icon="add")
-        td = date.today()
+        td = day_today()
         self.ym = (td.year, td.month)
 
         self.t_inc = StatTile(t("month_income"))
@@ -33,6 +34,10 @@ class FinancePage(Page):
         self.t_owed = StatTile(t("total_owed"))
         self.t_inv = StatTile(t("portfolio"))
         self.add(TileGrid([self.t_inc, self.t_exp, self.t_net, self.t_owe, self.t_owed, self.t_inv]))
+
+        # hedef: belirli bir tarihe borçsuz girmek (nakit + gelecek gelir + alacak − sabit gider − borç)
+        self.c_goal = Card("")
+        self.add(self.c_goal)
 
         self.c_chart = Card(t("last_6_months"))
         leg = QLabel(f"<span style='color:#2ba640'>●</span> {t('income')} &nbsp;&nbsp; "
@@ -47,7 +52,8 @@ class FinancePage(Page):
         self.row(self.c_chart, self.c_cats, stretches=[3, 2])
 
         # sekmeler: hareketler / borç & alacak / yatırımlar
-        self.tabs = ChipBar([("tx", t("tab_tx")), ("debts", t("tab_debts")), ("inv", t("tab_inv"))], "tx")
+        self.tabs = ChipBar([("tx", t("tab_tx")), ("debts", t("tab_debts")), ("fixed", t("tab_fixed")),
+                             ("cash", t("tab_cash")), ("inv", t("tab_inv"))], "tx")
         self.tabs.changed.connect(self._tab)
         self.add(self.tabs)
 
@@ -69,7 +75,12 @@ class FinancePage(Page):
         self.c_debts.add_clicked.connect(lambda: edit_item(win, "debts"))
         self.c_inv = Card(t("tab_inv"), add_tip=t("add_investment"))
         self.c_inv.add_clicked.connect(lambda: edit_item(win, "investments"))
-        self.tab_cards = {"tx": self.c_tx, "debts": self.c_debts, "inv": self.c_inv}
+        self.c_fixed = Card(t("tab_fixed"), add_tip=t("new_recurring"))
+        self.c_fixed.add_clicked.connect(lambda: edit_item(win, "recurring"))
+        self.c_cash = Card(t("tab_cash"), add_tip=t("new_accounts"))
+        self.c_cash.add_clicked.connect(lambda: edit_item(win, "accounts"))
+        self.tab_cards = {"tx": self.c_tx, "debts": self.c_debts, "fixed": self.c_fixed, "cash": self.c_cash,
+                          "inv": self.c_inv}
         for c in self.tab_cards.values():
             self.add(c)
 
@@ -82,14 +93,14 @@ class FinancePage(Page):
         self.refresh()
 
     def _add_tx_in_month(self):
-        td = date.today()
+        td = day_today()
         y, m = self.ym
         d = td if (y, m) == (td.year, td.month) else date(y, m, 1)
         edit_item(self.win, "transactions", preset={"date": d.isoformat()})
 
     def refresh(self):
         s, win = self.store, self.win
-        td = date.today()
+        td = day_today()
         inc, exp = s.month_totals(td.year, td.month)
         py, pm = _add_months(td.year, td.month, -1)
         pinc, pexp = s.month_totals(py, pm)
@@ -195,7 +206,88 @@ class FinancePage(Page):
             self.c_inv.empty(t("no_inv"))
         self.c_inv.set_sub(t("inv_sub", i=fmt_money(inv), v=fmt_money(val)) if invs else t("inv_hint"))
 
+        self._fill_fixed()
+        self._fill_cash()
+        self._fill_goal(td)
         self._tab(self.tabs.current)
+
+    # ------------------------------------------------------------ sabit gelir / gider
+    def _fill_fixed(self):
+        s, win, c = self.store, self.win, self.c_fixed
+        c.clear()
+        items = sorted(s.all("recurring"), key=lambda r: (r.get("kind") != "income", -num(r.get("amount"))))
+        inc = exp = 0.0
+        for r in items:
+            income = r.get("kind") == "income"
+            on = r.get("active") is not False
+            if on:
+                inc, exp = (inc + num(r.get("amount")), exp) if income else (inc, exp + num(r.get("amount")))
+            day = r.get("day")
+            sub = [t("every_month", d=int(num(day))) if day not in (None, "") else t("every_month_nd"),
+                   r.get("category") or "", r.get("note") or ""]
+            row = Row(r.get("name", ""), " · ".join(x for x in sub if x),
+                      value=fmt_money(num(r.get("amount")) * (1 if income else -1), sign=True),
+                      value_role=("text3" if not on else "good" if income else None),
+                      icon="arrow_down" if income else "arrow_up", icon_role="good" if income else "text2")
+            c.add(bind_row(win, row, "recurring", r))
+        if not items:
+            c.empty(t("no_fixed"))
+        c.set_sub(t("fixed_sub", i=fmt_money(inc), e=fmt_money(exp), n=fmt_money(inc - exp, sign=True))
+                  if items else "")
+
+    # ------------------------------------------------------------ nakit / hesaplar
+    def _fill_cash(self):
+        s, win, c = self.store, self.win, self.c_cash
+        c.clear()
+        for a in s.all("accounts"):
+            row = Row(a.get("name", ""), a.get("note") or "", value=fmt_money(a.get("balance")), icon="wallet")
+            c.add(bind_row(win, row, "accounts", a))
+        if not s.all("accounts"):
+            c.empty(t("no_cash"))
+        c.set_sub(fmt_money(s.cash_total()) if s.all("accounts") else "")
+
+    # ------------------------------------------------------------ hedef
+    def _fill_goal(self, td):
+        s, c = self.store, self.c_goal
+        goal = parse_date(prefs.get("debt_free_goal"))
+        c.setVisible(goal is not None and goal > td)
+        if goal is None or goal <= td:
+            return
+        c.title_lbl.setText(t("goal_title", d=fmt_day(goal)))
+        c.clear()
+        cash = s.cash_total()
+        occ = s.recurring_between(td, goal - date.resolution)
+        inc = [(d, r) for d, r in occ if r.get("kind") == "income"]
+        exp = [(d, r) for d, r in occ if r.get("kind") != "income"]
+        inc_sum = sum(num(r.get("amount")) for _, r in inc)
+        exp_sum = sum(num(r.get("amount")) for _, r in exp)
+        open_debts = [d for d in s.all("debts") if not d.get("settled")]
+        owed = [d for d in open_debts if d.get("direction") == "owed"
+                and (parse_date(d.get("due")) or goal) < goal]
+        owe = [d for d in open_debts if d.get("direction") != "owed"]
+        owed_sum = sum(num(d.get("amount")) for d in owed)
+        owe_sum = sum(num(d.get("amount")) for d in owe)
+        result = cash + inc_sum + owed_sum - exp_sum - owe_sum
+
+        def names(lst, key):
+            return ", ".join(dict.fromkeys(x.get(key, "") for x in lst if x.get(key)))
+
+        rows = [(t("goal_cash"), cash, names(s.all("accounts"), "name"), "wallet"),
+                (t("goal_income", n=len(inc)), inc_sum,
+                 " · ".join(f"{fmt_day_month(d)} {r.get('name', '')}" for d, r in inc[:4]), "arrow_down")]
+        if owed:
+            rows.append((t("goal_owed"), owed_sum, names(owed, "person"), "swap"))
+        rows.append((t("goal_fixed", n=len(exp)) if exp else t("goal_fixed_none"), -exp_sum,
+                     names([r for _, r in exp], "name"), "arrow_up"))
+        rows.append((t("goal_debt"), -owe_sum, names(owe, "person"), "swap"))
+        for title, v, sub, ic in rows:
+            c.add(Row(title, sub, value=fmt_money(v, sign=True), value_role="good" if v > 0 else "bad" if v < 0
+                      else "text3", icon=ic, icon_role="text2"))
+        c.add(Row(t("goal_result", d=fmt_day(goal)), t("goal_ok") if result >= 0 else
+                  t("goal_short", v=fmt_money(-result)), value=fmt_money(result, sign=True),
+                  value_role="good" if result >= 0 else "bad", icon="flag",
+                  icon_role="good" if result >= 0 else "bad"))
+        c.set_sub(t("goal_note"))
 
     def _vs(self, cur, prev):
         if not prev:

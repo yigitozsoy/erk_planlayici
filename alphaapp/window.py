@@ -1,13 +1,14 @@
 """Ana pencere: çerçevesiz (gamma gibi, Windows Snap çalışır), solda menü, sağda sayfalar."""
 import ctypes
 from ctypes import wintypes
-from datetime import date, datetime
+from datetime import datetime
 
 from PyQt6.QtCore import Qt, QTimer, QByteArray
 from PyQt6.QtGui import QCursor, QKeySequence, QShortcut, QGuiApplication, QAction
 from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QStackedWidget,
                              QMenu, QButtonGroup)
 
+from .config import day_today
 from .config import prefs
 from .i18n import t
 from .theme import theme, current_name
@@ -37,6 +38,7 @@ NAV = [
     ("today", "today", "nav_today"),
     ("schedule", "schedule_week", "nav_schedule"),
     ("habits", "check_circle", "nav_habits"),
+    ("goals", "track_changes", "nav_goals"),
     None,
     ("education", "cat_education", "nav_education"),
     ("work", "cat_work", "nav_work"),
@@ -163,10 +165,15 @@ class MainWindow(QMainWindow):
         self.maybe_plan()
 
         # gece yarısı geçince "Bugün" ve geri sayımlar yenilensin
-        self._day = date.today()
+        self._day = day_today()
         self._clock = QTimer(self)
         self._clock.timeout.connect(self._tick)
         self._clock.start(30_000)
+
+        from .reminders import ReminderManager
+        self.reminders = ReminderManager(store, self)
+        from .web import WebSync
+        self.web = WebSync(store, self)      # telefondan bakmak için gündemi siteye gönderir (Seçenekler > Web)
 
     # ============================================================ sayfalar
     def show_page(self, key):
@@ -188,7 +195,7 @@ class MainWindow(QMainWindow):
 
     def maybe_plan(self):
         """Günün ilk açılışında (öğleden önce) plan yapılmadıysa plan ekranını getirir."""
-        today = date.today().isoformat()
+        today = day_today().isoformat()
         if (not prefs.get("morning_plan", True) or prefs.get("last_plan") == today
                 or prefs.get("plan_skipped") == today or getattr(self, "current", None) == "plan"):
             return
@@ -202,8 +209,8 @@ class MainWindow(QMainWindow):
             p.mark_dirty()
 
     def _tick(self):
-        if date.today() != self._day:
-            self._day = date.today()
+        if day_today() != self._day:
+            self._day = day_today()
             self.refresh_all()
             if self.isVisible():
                 self.maybe_plan()
@@ -214,7 +221,7 @@ class MainWindow(QMainWindow):
     def quick_add_menu(self):
         from .forms import edit_item
         m = QMenu(self)
-        items = [("tasks", "qa_task"), ("routine", "qa_routine"), None, ("exams", "qa_exam"),
+        items = [("tasks", "qa_task"), ("routine", "qa_routine"), ("habits", "qa_habit"), None, ("exams", "qa_exam"),
                  ("workouts", "qa_workout"), ("events", "qa_event"), None,
                  ("transactions", "qa_tx"), ("debts", "qa_debt"), None]
         for it in items:

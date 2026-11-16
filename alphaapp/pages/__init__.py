@@ -4,6 +4,7 @@ from datetime import date, datetime
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QLabel, QLineEdit
 
+from ..config import day_today
 from ..components import Row
 from ..forms import bind_row, edit_item
 from ..i18n import t, due_badge, fmt_day, fmt_money
@@ -26,10 +27,12 @@ def build_pages(store, win):
     from .notes import NotesPage
     from .plan import PlanPage
     from .habits import HabitsPage
+    from .goals import GoalsPage
     return {
         "today": TodayPage(store, win),
         "schedule": SchedulePage(store, win),
         "habits": HabitsPage(store, win),
+        "goals": GoalsPage(store, win),
         "education": EducationPage(store, win),
         "work": WorkPage(store, win),
         "sport": SportPage(store, win),
@@ -65,7 +68,7 @@ def task_row(win, task, show_cat=True):
     if task.get("note"):
         sub.append(task["note"].splitlines()[0][:60])
     badges = []
-    if task.get("focus") == date.today().isoformat() and not task.get("done"):
+    if task.get("focus") == day_today().isoformat() and not task.get("done"):
         badges.append((t("focus"), None))
     if task.get("priority") == "high" and not task.get("done"):
         badges.append((t("prio_high"), "warn"))
@@ -75,10 +78,27 @@ def task_row(win, task, show_cat=True):
     r.check_toggled.connect(lambda v: toggle_task(win, task, v))
     extra = []
     if not task.get("done"):
-        extra = [(t("move_today"), lambda: win.store.update("tasks", task["id"], due=date.today().isoformat())),
+        extra = [(t("move_today"), lambda: win.store.update("tasks", task["id"], due=day_today().isoformat())),
                  (t("move_tomorrow"), lambda: win.store.update(
-                     "tasks", task["id"], due=date.fromordinal(date.today().toordinal() + 1).isoformat()))]
+                     "tasks", task["id"], due=date.fromordinal(day_today().toordinal() + 1).isoformat()))]
+        if task.get("category") == "education" and win.store.all("courses"):
+            extra.append((t("move_to_exams"), lambda: task_to_exam(win, task)))
     return bind_row(win, r, "tasks", task, extra)
+
+
+def task_to_exam(win, task):
+    """Ders görevini (ör. "Fizik I: Vize") Sınavlar'a taşır: sınav formu tahminle dolu açılır, kaydedilince görev
+    silinir. Geri al ikisini de geri çevirir."""
+    from ..forms import guess_exam
+    store = win.store
+    course, kind = guess_exam(store, task.get("title"))
+    preset = {"course": course or store.all("courses")[0]["id"], "name": kind or "Vize", "date": task.get("due"),
+              "time": task.get("time"), "weight": None, "note": task.get("title", "")}
+    ex = edit_item(win, "exams", preset=preset)
+    if ex is None:
+        return
+    removed = store.delete("tasks", task["id"])
+    win.toast(t("moved_to_exams"), t("undo"), lambda: (store.delete("exams", ex["id"]), store.restore(removed)))
 
 
 def deadline_row(win, d, show_cat=True):
@@ -136,7 +156,7 @@ class QuickTask(QLineEdit):
         if not text:
             return
         self.win.store.add("tasks", {"title": text, "category": self.category, "priority": "normal", "done": False,
-                                     "due": date.today().isoformat() if self.due_today else None})
+                                     "due": day_today().isoformat() if self.due_today else None})
         self.clear()
 
 

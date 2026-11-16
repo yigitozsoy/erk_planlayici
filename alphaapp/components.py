@@ -4,6 +4,7 @@ from PyQt6.QtGui import QPainter, QPen, QFontMetrics, QFont
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, QScrollArea, QBoxLayout, QPushButton,
                              QToolTip, QSizePolicy, QFrame, QLayout)
 
+from .config import day_today
 from .theme import theme, qcolor
 from .widgets import IconButton
 
@@ -559,9 +560,10 @@ class WeekStrip(QWidget):
 class Ring(QWidget):
     """Halka ilerleme göstergesi (ortasında metin)."""
 
-    def __init__(self, size=92, parent=None):
+    def __init__(self, size=92, parent=None, thick=None):
         super().__init__(parent)
         self.setFixedSize(size, size)
+        self.thick = thick or (8 if size >= 90 else 6)
         self.value = 0.0
         self.text = ""
         self.sub = ""
@@ -575,7 +577,7 @@ class Ring(QWidget):
     def paintEvent(self, e):
         p = QPainter(self)
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
-        w = 8
+        w = self.thick
         r = QRectF(w / 2 + 1, w / 2 + 1, self.width() - w - 2, self.height() - w - 2)
         p.setPen(QPen(qcolor("track"), w, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
         p.drawArc(r, 0, 360 * 16)
@@ -584,18 +586,21 @@ class Ring(QWidget):
             p.setPen(QPen(qcolor(self.role), w, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
             p.drawArc(r, 90 * 16, -int(360 * 16 * v))
         f = QFont(self.font())
-        f.setPointSizeF(15)
+        big = max(10.0, min(22.0, self.width() / 7))
+        f.setPointSizeF(big)
         f.setWeight(QFont.Weight.Bold)
         p.setFont(f)
         p.setPen(qcolor("text"))
-        tr = QRectF(0, self.height() / 2 - 16, self.width(), 24)
+        h = big * 1.6
+        tr = QRectF(0, self.height() / 2 - h * 0.66, self.width(), h)
         p.drawText(tr, Qt.AlignmentFlag.AlignCenter, self.text)
         if self.sub:
-            f.setPointSizeF(8)
+            f.setPointSizeF(max(7.0, big * 0.52))
             f.setWeight(QFont.Weight.Normal)
             p.setFont(f)
             p.setPen(qcolor("text2"))
-            p.drawText(QRectF(0, self.height() / 2 + 7, self.width(), 16), Qt.AlignmentFlag.AlignCenter, self.sub)
+            p.drawText(QRectF(0, self.height() / 2 + h * 0.36, self.width(), h * 0.7),
+                       Qt.AlignmentFlag.AlignCenter, self.sub)
 
 
 class ChipBar(QWidget):
@@ -641,9 +646,8 @@ class MonthCalendar(QWidget):
 
     def __init__(self, weekday_labels, parent=None):
         super().__init__(parent)
-        from datetime import date
         self.labels = weekday_labels
-        td = date.today()
+        td = day_today()
         self.year, self.month = td.year, td.month
         self.marks = {}          # date → ["bad", "good", "text2", ...]
         self.selected = None
@@ -722,7 +726,7 @@ class MonthCalendar(QWidget):
 
     # ------------------------------------------------------------ çizim
     def paintEvent(self, e):
-        from datetime import date, timedelta
+        from datetime import timedelta
         p = QPainter(self)
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
         w = self.width() / 7
@@ -733,7 +737,7 @@ class MonthCalendar(QWidget):
             p.setPen(qcolor("text3" if i >= 5 else "text2"))
             p.drawText(QRectF(i * w, 0, w, self.HEAD - 6), Qt.AlignmentFlag.AlignCenter, lab)
         f.setPointSizeF(9.5)
-        td = date.today()
+        td = day_today()
         start = self.first_cell()
         r = min(15.0, w / 2 - 3)
         for k in range(self.rows * 7):
@@ -819,8 +823,8 @@ class DayGrid(QWidget):
         return max(1, min(self.max_weeks, (self.width() - self.LEFT + self.GAP) // (self.CELL + self.GAP)))
 
     def first_day(self):
-        from datetime import date, timedelta
-        td = date.today()
+        from datetime import timedelta
+        td = day_today()
         return td - timedelta(days=td.weekday()) - timedelta(weeks=self.weeks() - 1)
 
     def _day_at(self, pos):
@@ -835,14 +839,13 @@ class DayGrid(QWidget):
         return self.first_day() + timedelta(days=c * 7 + r)
 
     def mouseMoveEvent(self, e):
-        from datetime import date
         from .i18n import fmt_long_date
         d = self._day_at(e.position())
         if d != self._hover:
             self._hover = d
             self.update()
             if d is not None:
-                state = "✓" if d in self.days else ("·" if d <= date.today() else "")
+                state = "✓" if d in self.days else ("·" if d <= day_today() else "")
                 QToolTip.showText(e.globalPosition().toPoint(), f"{fmt_long_date(d)}  {state}", self)
             else:
                 QToolTip.hideText()
@@ -853,18 +856,17 @@ class DayGrid(QWidget):
         super().leaveEvent(e)
 
     def mouseReleaseEvent(self, e):
-        from datetime import date
         if e.button() == Qt.MouseButton.LeftButton:
             d = self._day_at(e.position())
-            if d is not None and d <= date.today():
+            if d is not None and d <= day_today():
                 self.day_toggled.emit(d)
         super().mouseReleaseEvent(e)
 
     def paintEvent(self, e):
-        from datetime import date, timedelta
+        from datetime import timedelta
         p = QPainter(self)
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
-        td = date.today()
+        td = day_today()
         step = self.CELL + self.GAP
         n = self.weeks()
         start = self.first_day()

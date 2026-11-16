@@ -3,6 +3,7 @@ from datetime import date, datetime
 
 from PyQt6.QtWidgets import QWidget, QVBoxLayout
 
+from ..config import day_today, day_of
 from ..components import Page, Card, Row, StatTile, TileGrid, ProgressBar
 from ..forms import edit_item, bind_row
 from ..i18n import t, due_badge, fmt_day
@@ -39,7 +40,7 @@ class WorkPage(Page):
 
     def refresh(self):
         s, win = self.store, self.win
-        td = date.today()
+        td = day_today()
         ws = week_start(td)
         projects = sorted(s.all("projects"), key=lambda p: (STATUS_ORDER.get(p.get("status"), 9),
                                                             parse_date(p.get("due")) or date.max))
@@ -51,7 +52,7 @@ class WorkPage(Page):
         self.t_week.set(str(len(dl)), t("n_overdue", n=sum(1 for d in dl if d["date"] < td)) if any(
             d["date"] < td for d in dl) else "", "bad" if any(d["date"] < td for d in dl) else None)
         done = [x for x in s.all("tasks") if x.get("category") == "work" and x.get("done")
-                and (parse_date(x.get("done_at")) or date.min) >= ws]
+                and (day_of(x.get("done_at")) or date.min) >= ws]
         self.t_done.set(str(len(done)))
 
         self.c_proj.clear()

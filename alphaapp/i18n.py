@@ -1,6 +1,7 @@
 """Türkçe / İngilizce metinler ve tarih / para biçimleri. t("anahtar", **biçim) ile kullanılır."""
 from datetime import date, datetime
 
+from .config import day_today
 from .config import prefs
 
 S = {
@@ -68,10 +69,6 @@ S = {
     # program
     "prev_week": ("Önceki hafta", "Previous week"), "next_week": ("Sonraki hafta", "Next week"),
     "this_week": ("Bu hafta", "This week"),
-    "schedule_hint": ("Her hafta tekrar eden saatler (dersler, iş, antrenman) ve o haftaki tarihli işler. "
-                      "Bir şeye tıkla: düzenle · sağ tık: sil.",
-                      "Weekly recurring hours (classes, work, training) plus the dated items of that week. "
-                      "Click to edit · right-click to delete."),
     # eğitim
     "education_sub": ("Dersler, sınavlar ve not hedeflerin", "Courses, exams and grade goals"),
     "add_course": ("Ders ekle", "Add course"), "add_exam": ("Sınav / not ekle", "Add exam / grade"),
@@ -221,6 +218,81 @@ S = {
     "your_name_sub": ("Selamlamada görünür: \"Günaydın, …\"", "Shown in the greeting"),
     "currency": ("Para birimi", "Currency"),
     "today_page": ("Bugün sayfası", "Today page"),
+    "schedule_section": ("Program ve ekleme", "Schedule and adding"),
+    "pref_show_place": ("Konum ekle", "Add a place"),
+    "pref_show_place_sub": ("Kapalıyken ekleme pencerelerinde \"Yer\" alanı çıkmaz, programda konum gösterilmez",
+                            "When off, forms hide the \"Place\" field and the schedule hides places"),
+    "pref_habits_sched": ("Alışkanlıklar programda", "Habits in the schedule"),
+    "pref_habits_sched_sub": ("Alışkanlıklar haftalık programda kutu olarak görünür; tıklayınca o gün işaretlenir",
+                              "Habits show up as boxes in the weekly schedule; click to tick that day"),
+    "f_important": ("Önemli", "Important"),
+    "dm_task": ("Görev ekle", "Add task"), "dm_important": ("Önemli görev ekle", "Add important task"),
+    "dm_once": ("Bu güne özel ders / saat ekle", "Add a one-off class / slot"),
+    "dm_weekly": ("Her {d} tekrar eden ders / saat ekle", "Add a weekly class / slot on {d}"),
+    "dm_event": ("Sosyal plan ekle", "Add social plan"), "dm_exam": ("Sınav / ödev ekle", "Add exam / assignment"),
+    "rem_title": ("Hatırlatma", "Reminder"), "rem_now": ("şimdi", "now"),
+    "rem_in": ("{n} dk sonra", "in {n} min"), "rem_ok": ("Tamam", "OK"),
+    "rem_snooze": ("{n} dk ertele", "Snooze {n} min"),
+    "rem_test_title": ("Örnek hatırlatma", "Sample reminder"),
+    "rem_test_sub": ("Sesler ve kutu böyle görünecek", "This is how it will look and sound"),
+    "rem_section": ("Hatırlatıcılar", "Reminders"),
+    "rem_on": ("Hatırlat", "Remind me"),
+    "rem_on_sub": ("Saatli görev, ders ve planlardan önce ses çalar, sağ altta bir kutu açılır. alpha (ya da masaüstü "
+                   "widget'ı) açıkken çalışır.",
+                   "Plays a sound and shows a box before timed tasks, classes and plans while alpha (or the widget) runs."),
+    "rem_lead": ("Kaç dakika önce", "How many minutes before"),
+    "rem_sound": ("Ses", "Sound"), "rem_volume": ("Ses düzeyi", "Volume"),
+    "snd_chime": ("Zil", "Chime"), "snd_soft": ("Yumuşak", "Soft"), "snd_alarm": ("Alarm", "Alarm"),
+    "snd_system": ("Windows bildirim sesi", "Windows notification"), "snd_none": ("Sessiz", "Silent"),
+    "rem_try": ("Dene", "Try"),
+    "rem_important": ("Önemlilerde alarm sesi", "Alarm sound for important items"),
+    "rem_routine": ("Dersler ve program saatleri de", "Classes and schedule slots too"),
+    "day_end": ("Gün bitişi", "Day ends at"),
+    "day_end_sub": ("Bu saate kadar hâlâ \"bugün\" sayılır: gece 02:00'de bitirdiğin iş bugünün işi olur, yarına kaymaz",
+                    "Until this time it still counts as \"today\": a task finished at 2 AM stays today's"),
+    "day_end_midnight": ("Gece yarısı (00:00)", "Midnight (00:00)"),
+    "new_accounts": ("Nakit / hesap ekle", "Add cash / account"), "edit_accounts": ("Hesabı düzenle", "Edit account"),
+    "new_recurring": ("Sabit gelir / gider ekle", "Add fixed income / expense"),
+    "edit_recurring": ("Sabit gelir / gideri düzenle", "Edit fixed income / expense"),
+    "f_account_name": ("Ad", "Name"), "f_balance": ("Bakiye", "Balance"), "f_rec_name": ("Ad", "Name"),
+    "f_day_of_month": ("Ayın kaçında", "Day of month"), "f_active": ("Etkin", "Active"),
+    "tab_fixed": ("Sabit gelir / gider", "Fixed income / expenses"), "tab_cash": ("Nakit", "Cash"),
+    "no_fixed": ("Henüz sabit gelir / gider yok", "No fixed income / expenses yet"),
+    "no_cash": ("Nakit ya da hesap bakiyesi girilmedi", "No cash or account balance yet"),
+    "fixed_sub": ("Aylık gelir {i} · gider {e} · kalan {n}", "Monthly income {i} · expenses {e} · left {n}"),
+    "every_month": ("her ayın {d}'i", "every month on day {d}"),
+    "every_month_nd": ("her ay (gün belirtilmedi)", "every month (no day set)"),
+    "goal_title": ("Hedef: borçsuz gir · {d}", "Goal: debt-free by {d}"),
+    "goal_cash": ("Elindeki nakit", "Cash in hand"),
+    "goal_income": ("Gelecek gelir ({n})", "Income coming ({n})"),
+    "goal_fixed": ("Sabit giderler ({n})", "Fixed expenses ({n})"),
+    "goal_fixed_none": ("Sabit giderler (henüz girilmedi)", "Fixed expenses (none entered)"),
+    "goal_owed": ("Geri gelecek para (alacaklar)", "Money coming back (receivables)"),
+    "goal_debt": ("Ödenecek borçlar", "Debts to pay"),
+    "goal_result": ("Tahmini durum · {d}", "Estimated on {d}"),
+    "goal_ok": ("Bu gidişle hedefe ulaşılıyor", "On track"),
+    "goal_short": ("Hedefe {v} eksik", "{v} short of the goal"),
+    "goal_note": ("Yalnızca girdiğin rakamlarla hesaplanır; değişken harcamalar dahil değil.",
+                  "Calculated only from what you entered; day-to-day spending is not included."),
+    "sport_break": ("Ara ver", "Take a break"), "sport_break_edit": ("Arayı düzenle", "Edit break"),
+    "sport_break_short": ("Ara", "Break"),
+    "sport_break_info": ("Bu tarihler arasında haftalık hedef ara günleri kadar düşer; tamamen ara verilen hafta "
+                         "seriyi bozmaz.",
+                         "Between these dates the weekly goal shrinks by the break days; a full break week doesn't "
+                         "break your streak."),
+    "sport_break_note": ("Neden? (sakatlık, sınav haftası, tatil…)", "Why? (injury, exams, holiday…)"),
+    "sport_break_end": ("Arayı bitir", "End break"),
+    "sport_break_until": ("Ara veriyorsun · bitiş {d}", "On a break until {d}"),
+    "sport_break_from": ("Planlı ara: {a} – {z}", "Planned break: {a} – {z}"),
+    "sport_goal_scaled": ("ara nedeniyle bu hafta hedef {g} gün", "goal is {g} days this week due to the break"),
+    "n_days_short": ("{n} gün", "{n} days"),
+    "study_section": ("Ders çalışma", "Study"),
+    "moved_to": ("{d} gününe taşındı", "Moved to {d}"),
+    "move_every_week": ("Her hafta {d} gününe taşı", "Move to {d} every week"),
+    "move_once": ("Yalnızca bu hafta ({a} → {b})", "Only this week ({a} → {b})"),
+    "f_from": ("İlk hafta", "Starts"), "f_until": ("Son gün", "Ends"),
+    "f_habit_weekdays": ("Programdaki günler", "Days in schedule"),
+    "habit": ("Alışkanlık", "Habit"), "qa_habit": ("Alışkanlık", "Habit"),
     "deadline_days": ("Yaklaşanlar kaç gün ileriyi göstersin", "How far ahead \"Coming up\" looks"),
     "show_sport": ("Spor özetini göster", "Show sport summary"),
     "show_finance": ("Para özetini göster", "Show money summary"),
@@ -230,8 +302,59 @@ S = {
     "autostart_sub": ("Bilgisayarı açınca alpha Bugün sayfasıyla açılsın — sabah planın hazır olsun",
                       "Open alpha on Today when you sign in — your plan is ready in the morning"),
     "data": ("Veriler", "Data"),
-    "data_sub": ("Her şey bu bilgisayarda, tek bir dosyada. Her gün otomatik yedek alınır (son 14 gün).",
-                 "Everything stays on this PC in one file. A daily backup is kept (last 14 days)."),
+    "data_sub": ("Her şey bu bilgisayarda (Belgeler\\alpha): kayıtlar tek dosyada, hedef görselleri images klasöründe. "
+                 "Her gün otomatik yedek alınır (son 14 gün).",
+                 "Everything stays on this PC (Documents\\alpha): records in one file, goal images in the images "
+                 "folder. A daily backup is kept (last 14 days)."),
+    # görev → sınav / teslim
+    "f_as_exam": ("Sınav / teslim", "Exam / due"),
+    "f_as_exam_hint": ("Vize, quiz, ödev, rapor teslimi… → Sınavlar'a gider", "Midterm, quiz, homework, report… → goes to Exams"),
+    "saved_as_exam": ("Sınavlara eklendi", "Added to exams"),
+    "move_to_exams": ("Sınavlara taşı", "Move to exams"),
+    "moved_to_exams": ("Sınavlara taşındı", "Moved to exams"),
+    # seçenek kategorileri
+    "pcat_general": ("Genel", "General"),
+    "pcat_today": ("Bugün ve program", "Today and schedule"),
+    "pcat_sport_food": ("Spor ve beslenme", "Sport and nutrition"),
+    "pcat_phone": ("Telefonda aç", "Open on phone"),
+    # telefonda aç (web.py)
+    "web_sub": ("Bilgisayarın yanında değilken bugünün programını, yapılacakları ve takvimi telefonundan gör. "
+                "Sitene yalnızca bunlar gider (önümüzdeki 30 gün); hedefler, vision board, notlar ve ekonomi "
+                "kayıtları gitmez. Sayfa yalnızca senin bağlantınla açılır.",
+                "See today's schedule, to-dos and calendar on your phone when your PC isn't with you. Only these "
+                "are sent to your site (next 30 days); goals, vision board, notes and finance records are not. "
+                "Only your link can open the page."),
+    "web_on": ("Telefondan erişim", "Phone access"),
+    "web_on_sub": ("Açıkken alpha, gündemindeki her değişikliği birkaç saniye içinde sitene gönderir.",
+                   "When on, alpha sends every change in your agenda to your site within seconds."),
+    "web_link": ("Telefonuna kur", "Set up your phone"),
+    "web_link_sub": ("Bağlantıyı kopyala, kendine gönder ve telefonunda bir kez aç. Sonra yalnızca {u} yazman "
+                     "yeterli; istersen tarayıcıdan \u201cAna ekrana ekle\u201d de.",
+                     "Copy the link, send it to yourself and open it once on your phone. After that just type {u}; "
+                     "you can also \u201cAdd to home screen\u201d."),
+    "web_copy": ("Bağlantıyı kopyala", "Copy link"),
+    "web_status": ("Durum", "Status"),
+    "web_send": ("Şimdi güncelle", "Update now"),
+    "web_setup": ("Site kurulumu", "Site setup"),
+    "web_url": ("Site adresi", "Site address"),
+    "web_url_sub": ("alpha'nın gönderdiği sunucu dosyası (api/alpha.php).", "The server file alpha sends to (api/alpha.php)."),
+    "web_key": ("Erişim anahtarı", "Access key"),
+    "web_key_sub": ("Sitende yalnızca anahtarın şifreli özeti durur (api/_alpha_key.php). Bağlantın başkasının eline "
+                    "geçtiyse anahtarı değiştir, dosyayı yeniden yükle ve telefonunu yeniden kur.",
+                    "Your site only keeps a hash of the key (api/_alpha_key.php). If your link leaked, change the key, "
+                    "upload the file again and set up your phone again."),
+    "web_keyfile": ("Anahtar dosyasını kaydet…", "Save key file…"),
+    "web_keyfile_pick": ("Sitenin klasörünü seç", "Choose the site folder"),
+    "web_keyfile_saved": ("Kaydedildi: {p} — siteye yükle", "Saved: {p} — upload it to the site"),
+    "web_new_key": ("Anahtarı değiştir", "Change key"),
+    "web_new_key_done": ("Anahtar değişti: api/_alpha_key.php'yi siteye yükle ve telefonunu yeniden kur",
+                         "Key changed: upload api/_alpha_key.php and set up your phone again"),
+    "web_copied": ("Bağlantı kopyalandı — telefonunda bir kez aç", "Link copied — open it once on your phone"),
+    "web_off": ("Kapalı — telefondan erişim açık değil", "Off — phone access is not on"),
+    "web_need_url": ("Site adresini yaz (https://…/api/alpha.php)", "Enter the site address (https://…/api/alpha.php)"),
+    "web_err": ("Gönderilemedi: {e}", "Couldn't send: {e}"),
+    "web_last": ("Güncel · son gönderim {d}", "Up to date · last sent {d}"),
+    "web_never": ("Henüz gönderilmedi", "Not sent yet"),
     "open_folder": ("Klasörü aç", "Open folder"), "export_json": ("Dışa aktar (JSON)", "Export (JSON)"),
     "exported": ("Dışa aktarıldı: {p}", "Exported: {p}"),
     # çalışma kareleri / alışkanlıklar / beslenme
@@ -302,6 +425,23 @@ S = {
     "plan_carry_title": ("Dünden kalanlar", "Left over from before"),
     "plan_carry_none": ("Geciken iş yok — temiz bir başlangıç.", "Nothing overdue — a clean start."),
     "plan_done_yesterday": ("dün {n} iş bitti", "{n} done yesterday"),
+    "plan_key_tip": ("Kısayol: {k}", "Shortcut: {k}"),
+    "plan_keys_hint": ("Klavye: ↑ ↓ iş seç · 1 bugün · 2 yarın · 3 tarihsiz · 4 bitti · 5 / Del sil · Enter ileri",
+                       "Keyboard: ↑ ↓ pick · 1 today · 2 tomorrow · 3 someday · 4 done · 5 / Del delete · Enter next"),
+    "plan_yesterday": ("Dün nasıl geçti", "How yesterday went"),
+    "plan_y_tasks": ("Biten işler", "Tasks done"), "plan_y_habits": ("Alışkanlıklar", "Habits"),
+    "plan_y_streak": ("Süren en uzun seri", "Longest running streak"), "plan_y_sport": ("Spor", "Sport"),
+    "plan_y_tasks_note": ("{n} iş kaldı", "{n} left"), "plan_y_all_done": ("hepsi bitti", "all done"),
+    "plan_y_rest": ("dinlenme günü", "rest day"),
+    "plan_flow": ("Günün akışı", "Your day"),
+    "plan_flow_sub": ("Boş bir aralığa tıkla: bir işi o saate yerleştir", "Click a free slot to put a task there"),
+    "plan_flow_sub_n": ("Bugün {d} boş zamanın var · boş bir aralığa tıkla, bir işi oraya yerleştir",
+                        "{d} free today · click a free slot to put a task there"),
+    "plan_flow_full": ("Bugün dolu dolu — boş aralık yok", "Packed day — no free slots"),
+    "plan_gap_new": ("Yeni görev…", "New task…"),
+    "tl_free": ("boş {d}", "free {d}"), "tl_free_tip": ("tıkla: buraya bir iş koy", "click to put a task here"),
+    "dur_hm": ("{h} sa {m} dk", "{h} h {m} min"), "dur_h": ("{h} sa", "{h} h"), "dur_m": ("{m} dk", "{m} min"),
+    "n_days": ("{n} gün", "{n} days"),
     "plan_ch_today": ("Bugün", "Today"), "plan_ch_tomorrow": ("Yarın", "Tomorrow"),
     "plan_ch_someday": ("Tarihsiz", "Someday"), "plan_ch_done": ("Bitti", "Done"), "plan_ch_delete": ("Sil", "Delete"),
     "plan_all_today": ("Hepsi bugün", "All today"), "plan_all_tomorrow": ("Hepsi yarın", "All tomorrow"),
@@ -342,6 +482,67 @@ S = {
                        "Ctrl+,  seçenekler",
                        "Ctrl+N  quick add   ·   Ctrl+1…9  pages   ·   Ctrl+B  menu   ·   F11  full screen   ·   "
                        "Ctrl+,  preferences"),
+
+    # --- hayat hedefleri
+    "nav_goals": ("Hedefler", "Goals"),
+    "goals_sub": ("Büyük resim: hayat hedefin, sütunları ve bugün attığın adımlar",
+                  "The big picture: your life goal, its pillars and the steps you take today"),
+    "add_goal": ("Hedef ekle", "Add goal"), "new_goals": ("Hedef ekle", "Add goal"),
+    "edit_goals": ("Hedefi düzenle", "Edit goal"),
+    "f_goal_title": ("Hedef", "Goal"), "f_area": ("Alan", "Area"), "f_horizon": ("Zaman ufku", "Horizon"),
+    "f_parent": ("Üst hedef", "Parent goal"), "f_target_date": ("Hedef tarihi", "Target date"),
+    "f_links": ("Bağlı kayıtlar", "Linked items"), "f_image": ("Görsel", "Image"),
+    "f_goal_done": ("Ulaşıldı", "Achieved"),
+    "area_education": ("Eğitim", "Education"), "area_career": ("Kariyer", "Career"),
+    "area_venture": ("İş", "Venture"), "area_body": ("Beden", "Body"), "area_mind": ("Zihin", "Mind"),
+    "area_finance": ("Ekonomi", "Finance"), "area_growth": ("Kişisel gelişim", "Personal growth"),
+    "hz_life": ("Hayat hedefi", "Life goal"), "hz_y10": ("10 yıl", "10 years"), "hz_y3": ("3 yıl", "3 years"),
+    "hz_year": ("Bu yıl", "This year"), "hz_term": ("Bu dönem", "This term"), "hz_action": ("Eylem", "Action"),
+    "links_none": ("Bağlantı yok — seç", "None — choose"),
+    "links_empty": ("Önce alışkanlık, ders ya da proje ekle", "Add a habit, course or project first"),
+    "pick_image": ("Görsel seç…", "Choose image…"), "change_image": ("Görseli değiştir…", "Change image…"),
+    "clear_image": ("Kaldır", "Remove"),
+    "gv_board": ("Vision board", "Vision board"), "gv_wheel": ("Denge ve yol haritası", "Balance and roadmap"),
+    "bal_title": ("Denge", "Balance"),
+    "bal_sub": ("Son 30 gün · puanları alpha senin verilerinden hesaplar · çizgi: son 6 ay",
+                "Last 30 days · scored from your alpha data · line: last 6 months"),
+    "bal_no_data": ("Veri yok", "No data"),
+    "bal_no_data_hint": ("Bu alana bir hedef ekle ya da alışkanlık bağla", "Add a goal or link a habit to this area"),
+    "bal_avg": ("Ortalama", "Average"),
+    "bal_best": ("En güçlü: {a} {v}", "Strongest: {a} {v}"), "bal_worst": ("En zayıf: {a} {v}", "Weakest: {a} {v}"),
+    "bal_add_weak": ("+ {a} için hedef ekle", "+ Add a goal for {a}"),
+    "bal_study": ("Ders çalışma: haftada {n} gün", "Study: {n} days a week"),
+    "bal_grades": ("Notlar hedefin %{p}'i", "Grades at {p}% of target"),
+    "bal_work_tasks": ("Biten iş görevi: {n}", "Work tasks done: {n}"),
+    "bal_sport": ("Spor: haftada {n} gün (hedef {g})", "Sport: {n} days a week (goal {g})"),
+    "bal_protein": ("Protein hedefi: {n}/{m} gün", "Protein goal: {n}/{m} days"),
+    "bal_saving": ("Birikim oranı: %{p}", "Savings rate: {p}%"), "bal_no_income": ("Bu dönem gelir yok", "No income"),
+    "bal_debt": ("Açık borç: {v}", "Open debt: {v}"), "bal_no_debt": ("Açık borç yok", "No open debt"),
+    "bal_habits": ("Alışkanlıklar: %{p} dolu", "Habits: {p}% filled"),
+    "bal_plans": ("Günü planladın: {n}/{m} gün", "Planned the day: {n}/{m} days"),
+    "bal_goal_days": ("Hedeflere emek: 30 günde {n} gün", "Effort on goals: {n} of 30 days"),
+    "pin_add": ("Hedef ekle", "Add goal"),
+    "pin_add_sub": ("ya da bir görseli buraya sürükle / kopyala → Ctrl+V", "or drag an image here / copy → Ctrl+V"),
+    "pin_image_set": ("Görsel eklendi", "Image added"),
+    "goals_empty_title": ("Hayat hedeflerini planla", "Plan your life goals"),
+    "goals_empty": ("Büyük hedefini, onu taşıyan alt hedefleri ve bunları hatırlatan görselleri tek panoda topla. "
+                    "Alışkanlıkları ve dersleri bağla: çalıştıkça ilerlemen görünür.",
+                    "Collect your big goal, the goals that carry it and images that remind you of them on one board. "
+                    "Link habits and courses to see your progress as you work."),
+    "goals_sample": ("Örnek hedeflerle doldur", "Fill with sample goals"),
+    "goals_sample_del": ("Örnekleri sil", "Remove samples"),
+    "goals_sample_added": ("Örnek hedefler eklendi — bakıp sonra silebilirsin", "Sample goals added"),
+    "goals_sample_removed": ("Örnekler silindi", "Samples removed"),
+    "goal_mark_today": ("Bugün bunun için çalıştım", "Worked on this today"),
+    "goal_unmark_today": ("Bugünkü işareti kaldır", "Remove today's mark"),
+    "goal_add_child": ("Alt hedef ekle", "Add sub-goal"),
+    "board_hint": ("Pinterest'ten bir görseli kopyala, kartın üstüne gel → Ctrl+V",
+                   "Copy an image (e.g. from Pinterest), hover a card → Ctrl+V"),
+    "roadmap_title": ("Yol haritası", "Roadmap"),
+    "roadmap_sub": ("Hayat hedefinden bu döneme: her adım bir üsttekine hizmet eder",
+                    "From life goal to this term: every level serves the one above"),
+    "roadmap_empty": ("Bu ufukta hedef yok", "No goals on this horizon"),
+    "goal_days_30": ("30 günde {n} gün", "{n} days in 30"),
 }
 
 
@@ -440,7 +641,7 @@ def fmt_day(d: date):
     """Göreli kısa tarih: Bugün · Yarın · Dün · Cuma (bu hafta içi) · 14 Kas · 14 Kas 2027."""
     if d is None:
         return ""
-    td = date.today()
+    td = day_today()
     diff = (d - td).days
     if diff == 0:
         return t("today")
@@ -458,7 +659,7 @@ def fmt_day(d: date):
 
 def due_badge(d: date):
     """(metin, tür) — geciken kırmızı, bugün/yarın kırmızı-turuncu, 3 güne kadar turuncu."""
-    diff = (d - date.today()).days
+    diff = (d - day_today()).days
     if diff < 0:
         return t("overdue_n", n=-diff), "bad"
     if diff == 0:
@@ -479,7 +680,7 @@ def fmt_stamp(iso):
         return ""
     d = dt.date()
     hm = dt.strftime("%H:%M")
-    diff = (date.today() - d).days
+    diff = (day_today() - d).days
     if diff == 0:
         return f"{t('today')} {hm}"
     if diff == 1:

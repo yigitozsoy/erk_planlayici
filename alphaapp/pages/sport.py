@@ -1,11 +1,13 @@
 """Spor: haftalık hedef (haftada kaç gün), bu hafta, son haftalar, ne çalıştım, antrenman günlüğü."""
 from collections import Counter
-from datetime import date, timedelta
+from datetime import timedelta
 
-from PyQt6.QtCore import Qt
-from PyQt6.QtWidgets import QHBoxLayout, QVBoxLayout, QLabel, QWidget, QSpinBox, QPushButton
+from PyQt6.QtCore import Qt, QDate
+from PyQt6.QtWidgets import (QHBoxLayout, QVBoxLayout, QLabel, QWidget, QSpinBox, QPushButton, QDialog,
+                             QDateEdit, QLineEdit, QGridLayout)
 
-from ..components import (Page, Card, Row, StatTile, TileGrid, BarChart, HBars, WeekStrip, Ring, ProgressBar,
+from ..config import day_today
+from ..components import (Page, Card, Row, StatTile, TileGrid, BarChart, HBars, WeekStrip, Ring,
                           FlowLayout)
 from ..widgets import IconButton
 from ..config import prefs
@@ -48,6 +50,13 @@ class SportPage(Page):
         self.goal.setFixedWidth(130)
         gl.addWidget(lbl)
         gl.addWidget(self.goal)
+        gl.addSpacing(8)
+        self.break_btn = QPushButton(t("sport_break"))
+        self.break_btn.setObjectName("Chip")
+        self.break_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.break_btn.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self.break_btn.clicked.connect(self._edit_break)
+        gl.addWidget(self.break_btn)
         gl.addStretch(1)
         right.addLayout(gl)
         top.addLayout(right, 1)
@@ -87,39 +96,55 @@ class SportPage(Page):
 
     def _add_meal(self, m):
         keep = {k: m.get(k) for k in ("name", "kcal", "protein", "carbs", "fat")}
-        self.store.add("meals", keep | {"date": date.today().isoformat()})
+        self.store.add("meals", keep | {"date": day_today().isoformat()})
         self.win.toast(t("meal_added", x=m.get("name", "")))
 
     def _fill_food(self):
-        s, win, td = self.store, self.win, date.today()
+        s, win, td = self.store, self.win, day_today()
         tot = s.meal_totals(td)
         c = self.c_food
         c.clear()
+        # halkalar: yedikçe dolar; hedefin ±%10'u yeşil, %10'dan fazla aşınca kırmızı
+        rings = QWidget()
+        rl = QHBoxLayout(rings)
+        rl.setContentsMargins(6, 6, 6, 4)
+        rl.setSpacing(14)
+        self.food_rings = {}
         for key, unit in (("kcal", "kcal"), ("protein", "g"), ("carbs", "g"), ("fat", "g")):
             goal = float(prefs.get("goal_" + key) or 0) or 1.0
             v = tot[key]
-            w = QWidget()
-            lay = QVBoxLayout(w)
-            lay.setContentsMargins(6, 6, 6, 6)
-            lay.setSpacing(5)
-            top = QHBoxLayout()
+            over = v > goal * 1.1
+            done = goal * 0.9 <= v <= goal * 1.1
+            role = "bad" if over else "good" if done else "text"
+            big = key == "kcal"
+            ring = Ring(150 if big else 86, thick=12 if big else 7)
+            ring.set(v / goal, fmt_num(v, 0), f"/ {fmt_num(goal, 0)} {unit}" if big else
+                     f"%{int(round(100 * v / goal))}", role)
+            ring.setToolTip(t("macro_val", v=fmt_num(v, 0), g=fmt_num(goal, 0), u=unit))
+            self.food_rings[key] = ring
+            col = QVBoxLayout()
+            col.setSpacing(4)
+            col.addWidget(ring, 0, Qt.AlignmentFlag.AlignHCenter)
             name = QLabel(t("macro_" + key))
             name.setObjectName("RowTitle")
-            top.addWidget(name)
+            name.setAlignment(Qt.AlignmentFlag.AlignHCenter)
+            col.addWidget(name)
             rest = goal - v
             hint = QLabel(t("macro_left", v=fmt_num(rest, 0), u=unit) if rest >= 0
                           else t("macro_over", v=fmt_num(-rest, 0), u=unit))
             hint.setObjectName("RowSub")
-            top.addWidget(hint, 1, Qt.AlignmentFlag.AlignRight)
-            val = QLabel(t("macro_val", v=fmt_num(v, 0), g=fmt_num(goal, 0), u=unit))
-            val.setObjectName("RowValue")
-            top.addSpacing(10)
-            top.addWidget(val)
-            lay.addLayout(top)
-            over = v > goal * 1.1
-            done = goal * 0.9 <= v <= goal * 1.1
-            lay.addWidget(ProgressBar(min(1.0, v / goal), "bad" if over else "good" if done else "text", height=6))
-            c.add(w)
+            hint.setAlignment(Qt.AlignmentFlag.AlignHCenter)
+            col.addWidget(hint)
+            if big:
+                rl.addLayout(col)
+                rl.addSpacing(6)
+                mac = QHBoxLayout()
+                mac.setSpacing(10)
+                rl.addLayout(mac, 1)
+            else:
+                col.addStretch(1)
+                mac.addLayout(col, 1)
+        c.add(rings)
         # 7 günlük ortalama (öğün girilen günler)
         logged = [td - timedelta(days=k) for k in range(1, 8) if s.meals_on(td - timedelta(days=k))]
         if logged:
@@ -167,6 +192,83 @@ class SportPage(Page):
         mc.title_lbl.setText(t("todays_meals"))
         mc.set_sub(t("n_items", n=len(meals)) if meals else "")
 
+    # ------------------------------------------------------------ spora ara
+    def _edit_break(self):
+        s, td = self.store, day_today()
+        br = s.sport_break()
+        dlg = QDialog(self.win)
+        dlg.setWindowTitle(t("sport_break"))
+        dlg.setMinimumWidth(420)
+        v = QVBoxLayout(dlg)
+        v.setContentsMargins(22, 20, 22, 18)
+        v.setSpacing(12)
+        info = QLabel(t("sport_break_info"))
+        info.setObjectName("RowSub")
+        info.setWordWrap(True)
+        v.addWidget(info)
+        g = QGridLayout()
+        g.setHorizontalSpacing(12)
+        g.setVerticalSpacing(8)
+        edits = []
+        for i, (key, d0) in enumerate((("f_from", br[0] if br else td), ("f_until", br[1] if br else td + timedelta(days=6)))):
+            lbl = QLabel(t(key))
+            lbl.setObjectName("FieldLabel")
+            de = QDateEdit(QDate(d0.year, d0.month, d0.day))
+            de.setCalendarPopup(True)
+            de.setDisplayFormat("d MMMM yyyy, dddd")
+            g.addWidget(lbl, i, 0)
+            g.addWidget(de, i, 1)
+            edits.append(de)
+        note = QLineEdit((prefs.get("sport_break") or {}).get("note", "") if br else "")
+        note.setPlaceholderText(t("sport_break_note"))
+        lbl = QLabel(t("f_note"))
+        lbl.setObjectName("FieldLabel")
+        g.addWidget(lbl, 2, 0)
+        g.addWidget(note, 2, 1)
+        v.addLayout(g)
+        quick = QHBoxLayout()
+        quick.setSpacing(6)
+        for n in (3, 7, 14, 30):
+            b = QPushButton(t("n_days_short", n=n))
+            b.setObjectName("Chip")
+            b.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+            b.clicked.connect(lambda _=False, n=n: edits[1].setDate(edits[0].date().addDays(n - 1)))
+            quick.addWidget(b)
+        quick.addStretch(1)
+        v.addLayout(quick)
+        bar = QHBoxLayout()
+        result = {}
+        if br:
+            end = QPushButton(t("sport_break_end"))
+            end.clicked.connect(lambda: (result.update(op="end"), dlg.accept()))
+            bar.addWidget(end)
+        bar.addStretch(1)
+        cancel = QPushButton(t("cancel"))
+        cancel.clicked.connect(dlg.reject)
+        ok = QPushButton(t("save"))
+        ok.setObjectName("Primary")
+        ok.setDefault(True)
+        ok.clicked.connect(lambda: (result.update(op="save"), dlg.accept()))
+        bar.addWidget(cancel)
+        bar.addWidget(ok)
+        v.addLayout(bar)
+        if dlg.exec() != QDialog.DialogCode.Accepted:
+            return
+        if result.get("op") == "end":
+            # bugün bitir (geçmiş ara günleri seride korunsun); henüz başlamadıysa tamamen kaldır
+            if br[0] >= td:
+                prefs.set("sport_break", {})
+            else:
+                prefs.set("sport_break", {"from": br[0].isoformat(), "until": (td - timedelta(days=1)).isoformat(),
+                                          "note": (prefs.get("sport_break") or {}).get("note", "")})
+        else:
+            a, z = (e.date().toPyDate() for e in edits)
+            if z < a:
+                a, z = z, a
+            prefs.set("sport_break", {"from": a.isoformat(), "until": z.isoformat(), "note": note.text().strip()})
+        self.refresh()
+        self.win.pages["today"].mark_dirty()
+
     def _goal(self, v):
         prefs.set("sport_weekly_goal", int(v))
         self.refresh()
@@ -174,20 +276,39 @@ class SportPage(Page):
 
     def refresh(self):
         s, win = self.store, self.win
-        td = date.today()
+        td = day_today()
         ws = week_start(td)
-        goal = max(1, int(prefs.get("sport_weekly_goal", 4)))
-        if self.goal.value() != goal:
+        base = max(1, int(prefs.get("sport_weekly_goal", 4)))
+        if self.goal.value() != base:
             self.goal.blockSignals(True)
-            self.goal.setValue(goal)
+            self.goal.setValue(base)
             self.goal.blockSignals(False)
+        goal = s.sport_goal(ws)
         days = s.sport_days(ws, ws + timedelta(days=6))
         n = len(days)
         left = goal - n
-        self.ring.set(n / goal, f"{n}/{goal}", t("days"), "good" if n >= goal else "text")
+        br = s.sport_break()
+        on_break = br is not None and br[0] <= td <= br[1]
+        if goal == 0:
+            self.ring.set(1.0 if n else 0.0, t("sport_break_short"), t("n_days_short", n=n) if n else "", "text3")
+        else:
+            self.ring.set(n / goal, f"{n}/{goal}", t("days"), "good" if n >= goal else "text")
         self.strip.set([(ws + timedelta(days=i)) in days for i in range(7)], td.weekday())
-        self.c_week.set_sub(t("goal_reached") if left <= 0 else t("goal_left", n=left, d=7 - td.weekday()))
-        self.t_week.set(f"{n}/{goal}", t("days"), "good" if n >= goal else None)
+        if on_break:
+            sub = t("sport_break_until", d=fmt_day_month(br[1]))
+        elif br is not None and br[0] > td:
+            sub = t("sport_break_from", a=fmt_day_month(br[0]), z=fmt_day_month(br[1]))
+        else:
+            sub = t("goal_reached") if left <= 0 else t("goal_left", n=left, d=7 - td.weekday())
+        if goal and goal != base and not on_break and not (br is not None and br[0] > td):
+            sub += " · " + t("sport_goal_scaled", g=goal)
+        self.c_week.set_sub(sub)
+        self.break_btn.setText(t("sport_break_edit") if br and br[1] >= td else t("sport_break"))
+        self.break_btn.setProperty("checked", bool(on_break))
+        self.break_btn.setCheckable(True)
+        self.break_btn.setChecked(bool(on_break))
+        self.t_week.set(f"{n}/{goal}" if goal else t("sport_break_short"), t("days") if goal else "",
+                        "good" if goal and n >= goal else None)
 
         m0 = td.replace(day=1)
         month_w = s.workouts_between(m0, td)
@@ -195,16 +316,19 @@ class SportPage(Page):
         self.t_minutes.set(str(int(sum(num(w.get("minutes")) for w in month_w))), t("minutes"))
 
         # seri: hedefi tutturan ardışık haftalar (bu hafta henüz bitmediyse geçen haftadan say)
+        # ara haftaları (hedef 0) seriyi ne artırır ne bozar
         streak = 0
         k = 0 if n >= goal else 1
-        while True:
+        while k <= 520:
             a = ws - timedelta(weeks=k)
-            if len(s.sport_days(a, a + timedelta(days=6))) >= goal:
+            g = s.sport_goal(a)
+            if g == 0:
+                k += 1
+                continue
+            if len(s.sport_days(a, a + timedelta(days=6))) >= g:
                 streak += 1
                 k += 1
             else:
-                break
-            if k > 520:
                 break
         self.t_streak.set(str(streak), t("weeks"), "good" if streak else None)
 

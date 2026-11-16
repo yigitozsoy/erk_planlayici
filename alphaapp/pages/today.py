@@ -1,14 +1,15 @@
 """Bugün: sabah açınca her şey hazır — bugünün programı, yapılacaklar, yaklaşan deadline'lar, haftanın özeti."""
-from datetime import date, datetime, timedelta
+from datetime import datetime, timedelta
 
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QHBoxLayout, QVBoxLayout, QLabel, QWidget, QPushButton
 
+from ..config import day_today, day_of
 from ..components import Page, Card, Row, WeekStrip, Ring, MonthCalendar
 from ..widgets import IconButton
 from ..config import prefs
 from ..forms import edit_item, bind_row
-from ..i18n import t, fmt_long_date, fmt_money, fmt_month, WEEKDAYS_SHORT
+from ..i18n import t, fmt_day_month, fmt_long_date, fmt_money, fmt_month, WEEKDAYS_SHORT
 from ..store import parse_date, week_start
 from . import task_row, deadline_row, routine_row, time_lead, QuickTask, CAT_ICON, KIND_ICON
 
@@ -22,7 +23,7 @@ class TodayPage(Page):
     def __init__(self, store, win):
         super().__init__(store, win, "", "")
         self.title_lbl.setObjectName("Greeting")
-        self.action(t("add_task"), lambda: edit_item(win, "tasks", preset={"due": date.today().isoformat()}),
+        self.action(t("add_task"), lambda: edit_item(win, "tasks", preset={"due": day_today().isoformat()}),
                     icon="add")
         self.action(t("plan_day"), win.open_plan, icon="sunrise")
 
@@ -47,7 +48,7 @@ class TodayPage(Page):
         self.c_prog = Card(t("today_program"), add_tip=t("add_routine"))
         self.c_prog.add_clicked.connect(lambda: edit_item(win, "routine"))
         self.c_todo = Card(t("todo"), add_tip=t("add_task"))
-        self.c_todo.add_clicked.connect(lambda: edit_item(win, "tasks", preset={"due": date.today().isoformat()}))
+        self.c_todo.add_clicked.connect(lambda: edit_item(win, "tasks", preset={"due": day_today().isoformat()}))
         self.c_todo.layout().addSpacing(6)
         self.c_todo.layout().addWidget(QuickTask(win))
 
@@ -107,7 +108,7 @@ class TodayPage(Page):
         self._fill_cal()
 
     def _cal_today(self):
-        td = date.today()
+        td = day_today()
         self.cal_sel = None
         self.cal.set_selected(None)
         self.cal.set_month(td.year, td.month)
@@ -121,11 +122,11 @@ class TodayPage(Page):
         self._fill_cal()
 
     def _cal_new_task(self):
-        d = self.cal_sel or date.today()
+        d = self.cal_sel or day_today()
         edit_item(self.win, "tasks", preset={"due": d.isoformat()})
 
     def _fill_cal(self):
-        s, win, td = self.store, self.win, date.today()
+        s, win, td = self.store, self.win, day_today()
         cal, c = self.cal, self.c_cal
         a, b = cal.visible_range()
         items = s.items_between(a, b)
@@ -163,13 +164,13 @@ class TodayPage(Page):
             c.empty(t("cal_empty"))
 
     def _plan_not_today(self):
-        prefs.set("last_plan", date.today().isoformat())
+        prefs.set("last_plan", day_today().isoformat())
         self.c_plan.hide()
 
     def refresh(self):
         s, win = self.store, self.win
         now = datetime.now()
-        td = date.today()
+        td = day_today()
         name = (prefs.get("name") or "").strip()
         h = now.hour
         greet = t("greet_morning") if 5 <= h < 12 else t("greet_day") if h < 18 else t("greet_evening")
@@ -190,7 +191,7 @@ class TodayPage(Page):
         courses = {c["id"]: c for c in s.all("courses")}
         for ex in s.all("exams"):
             if parse_date(ex.get("date")) == td:
-                items.append(("99:97", "x", ex))
+                items.append((ex.get("time") or "99:97", "x", ex))
         items.sort(key=lambda x: x[0])
         for _, kind, it in items:
             if kind == "r":
@@ -205,7 +206,7 @@ class TodayPage(Page):
                 self.c_prog.add(bind_row(win, r, "events", it))
             else:
                 c = courses.get(it.get("course"), {})
-                r = Row(f"{c.get('name', '')} · {it.get('name', '')}", t("exam"), lead=time_lead(t("exam_short")),
+                r = Row(f"{c.get('name', '')} · {it.get('name', '')}", t("exam"), lead=time_lead(it.get("time") or t("exam_short")),
                         badges=[(t("today"), "bad")])
                 self.c_prog.add(bind_row(win, r, "exams", it))
         if not items:
@@ -230,7 +231,7 @@ class TodayPage(Page):
                 self.c_todo.add(task_row(win, tk))
             if len(undated) > 8:
                 self.c_todo.empty(t("and_more", n=len(undated) - 8))
-        done_today = [x for x in s.all("tasks") if x.get("done") and (x.get("done_at") or "")[:10] == td.isoformat()]
+        done_today = [x for x in s.all("tasks") if x.get("done") and day_of(x.get("done_at")) == td]
         if not due_now and not undated:
             self.c_todo.empty(t("no_todo"))
         n_over = sum(1 for x in due_now if parse_date(x.get("due")) < td)
@@ -254,12 +255,16 @@ class TodayPage(Page):
         self.c_dead.set_sub(t("next_n_days", n=days))
 
         # --- haftanın özeti
-        goal = max(1, int(prefs.get("sport_weekly_goal", 4)))
         ws = week_start(td)
+        goal = s.sport_goal(ws)
         sdays = s.sport_days(ws, ws + timedelta(days=6))
         n = len(sdays)
-        self.ring.set(n / goal, f"{n}/{goal}", t("days"), "good" if n >= goal else "text")
-        self.sport_lbl.setText(t("sport_week", n=n, g=goal))
+        if goal:
+            self.ring.set(n / goal, f"{n}/{goal}", t("days"), "good" if n >= goal else "text")
+            self.sport_lbl.setText(t("sport_week", n=n, g=goal))
+        else:
+            self.ring.set(0, t("sport_break_short"), "", "text3")
+            self.sport_lbl.setText(t("sport_break_until", d=fmt_day_month(s.sport_break()[1])))
         self.strip.set([(ws + timedelta(days=i)) in sdays for i in range(7)], td.weekday())
         self.week_top.setVisible(bool(prefs.get("show_sport_on_today", True)))
         self.c_week.clear()

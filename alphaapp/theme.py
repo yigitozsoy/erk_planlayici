@@ -244,6 +244,13 @@ QPushButton#NavItem:checked:hover {{ background: {c['surface_hover']}; }}
 /* Kartlar */
 #Card {{ background: {c['card']}; border-radius: 12px; }}
 #CardToday {{ background: {c['surface']}; border-radius: 12px; }}
+#Reminder {{ background: {c['card']}; border: 1px solid {c['input_border']}; border-radius: 12px; }}
+#ReminderImportant {{ background: {c['card']}; border: 1px solid rgba(255,78,69,0.6);
+    border-left: 4px solid {BAD}; border-radius: 12px; }}
+#RemindWhen {{ font-size: 12px; color: {c['text2']}; font-weight: 600; }}
+#RemindTitle {{ font-size: 15px; font-weight: 700; color: {c['text']}; }}
+#RemindTitleBad {{ font-size: 15px; font-weight: 700; color: {BAD if dark else '#d0241b'}; }}
+#CardDrop {{ background: {c['surface_hover']}; border: 1px dashed {c['text2']}; border-radius: 12px; }}
 #CardTitle {{ font-size: 15px; font-weight: 700; color: {c['text']}; }}
 #CardSub {{ font-size: 12px; color: {c['text2']}; }}
 #Row {{ background: transparent; border-radius: 8px; }}
@@ -253,6 +260,21 @@ QPushButton#NavItem:checked:hover {{ background: {c['surface_hover']}; }}
 #RowSub {{ font-size: 12px; color: {c['text2']}; }}
 #RowValue {{ font-size: 13px; font-weight: 600; color: {c['text']}; }}
 #Empty {{ color: {c['text3']}; font-size: 12px; padding: 8px 6px; }}
+#Block {{ background: {c['bg'] if dark else c['bg']}; border: 1px solid {c['divider']}; border-radius: 8px; }}
+#Block:hover {{ background: {c['hover']}; }}
+#BlockImportant {{ background: rgba(255,78,69,{'0.14' if dark else '0.10'}); border: 1px solid rgba(255,78,69,0.55);
+    border-left: 3px solid {BAD}; border-radius: 8px; }}
+#BlockImportant:hover {{ background: rgba(255,78,69,0.22); }}
+#BlockTitleImportant {{ font-size: 13px; font-weight: 600; color: {BAD if dark else '#d0241b'}; }}
+#BlockTimeImportant {{ font-size: 12px; font-weight: 600; color: {BAD if dark else '#d0241b'}; }}
+#CarryRow {{ background: transparent; border-radius: 10px; }}
+#CarryRowCurrent {{ background: {c['surface']}; border-radius: 10px; }}
+#ProgFill {{ background: {c['text']}; border-radius: 2px; }}
+#ProgTrack {{ background: {c['track']}; border-radius: 2px; }}
+QPushButton#CatChip {{ background: {c['surface']}; border: 1px solid transparent; border-radius: 10px;
+    padding: 0px; min-width: 40px; max-width: 40px; min-height: 34px; max-height: 34px; }}
+QPushButton#CatChip:hover {{ background: {c['surface_hover']}; }}
+QPushButton#CatChip:checked {{ background: {c['selected']}; border: 1px solid {c['text']}; }}
 #Badge {{
     background: {c['surface']}; color: {c['text']}; border-radius: 4px;
     padding: 1px 6px; font-size: 11px; font-weight: 600;
@@ -394,6 +416,7 @@ QDialog QPushButton {{
     padding: 7px 16px; font-weight: 500; min-width: 64px;
 }}
 QDialog QPushButton:hover {{ background: {c['surface_hover']}; }}
+QDialog QPushButton#Chip {{ min-width: 0px; padding: 6px 10px; }}
 """
 
 

@@ -1,13 +1,13 @@
 """Eğitim: dersler, sınav/ödev notları (hedef ↔ aldığım), gereken not, yaklaşan sınavlar, ders görevleri."""
-from datetime import date, timedelta
+from datetime import date
 
-from PyQt6.QtCore import Qt
-from PyQt6.QtWidgets import QLabel, QWidget, QVBoxLayout, QHBoxLayout, QPushButton
+from PyQt6.QtWidgets import QLabel, QWidget, QVBoxLayout
 
-from ..components import Page, Card, Row, StatTile, TileGrid, ProgressBar, ResponsiveRow, DayGrid
+from ..config import day_today
+from ..components import Page, Card, Row, StatTile, TileGrid, ProgressBar, ResponsiveRow
 from ..forms import edit_item, bind_row, item_menu
-from ..i18n import t, due_badge, fmt_day, fmt_num, WEEKDAYS_SHORT, MONTHS_SHORT
-from ..store import parse_date, num, day_set, streaks, week_start
+from ..i18n import t, due_badge, fmt_day, fmt_num
+from ..store import parse_date, num
 from ..widgets import IconButton
 from . import task_row, deadline_row, QuickTask
 
@@ -40,7 +40,7 @@ class EducationPage(Page):
 
     def refresh(self):
         s, win = self.store, self.win
-        td = date.today()
+        td = day_today()
         courses = s.all("courses")
 
         # --- dersler
@@ -149,44 +149,7 @@ class EducationPage(Page):
         card.body.addSpacing(4)
         for e in exams:
             card.add(self._exam_row(e))
-        card.add(self._study_block(c))
         return card, is_below, avg
-
-    def _study_block(self, c):
-        """GitHub tarzı çalışma kareleri: o gün bu derse çalıştıysan kareyi işaretle."""
-        s, td = self.store, date.today()
-        days = day_set(c.get("study_days"))
-        ws = week_start(td)
-        week_n = sum(1 for d in days if ws <= d <= ws + timedelta(days=6))
-        cur, _ = streaks(days, td)
-        w = QWidget()
-        v = QVBoxLayout(w)
-        v.setContentsMargins(6, 12, 0, 0)
-        v.setSpacing(6)
-        head = QHBoxLayout()
-        head.setSpacing(8)
-        lbl = QLabel(t("study_title"))
-        lbl.setObjectName("FieldLabel")
-        head.addWidget(lbl)
-        info = QLabel(t("study_info", w=week_n, s=cur, n=len(days)))
-        info.setObjectName("RowSub")
-        head.addWidget(info, 1)
-        done = td in days
-        b = QPushButton(t("study_done_today") if done else t("study_today"))
-        b.setObjectName("Chip")
-        b.setCheckable(True)
-        b.setChecked(done)
-        b.setCursor(Qt.CursorShape.PointingHandCursor)
-        b.setFocusPolicy(Qt.FocusPolicy.NoFocus)
-        b.clicked.connect(lambda _=False, cid=c["id"]: s.toggle_day("courses", cid, td, "study_days"))
-        head.addWidget(b)
-        v.addLayout(head)
-        grid = DayGrid(WEEKDAYS_SHORT(), MONTHS_SHORT())
-        grid.set_days(days)
-        grid.day_toggled.connect(lambda d, cid=c["id"]: s.toggle_day("courses", cid, d, "study_days"))
-        v.addWidget(grid)
-        w.grid = grid
-        return w
 
     def _exam_row(self, e):
         d = parse_date(e.get("date"))
@@ -204,7 +167,7 @@ class EducationPage(Page):
         else:
             if target not in (None, ""):
                 sub.append(t("target_score", v=fmt_num(target)))
-            if d and d < date.today():
+            if d and d < day_today():
                 badges.append((t("enter_score"), "warn"))
             elif d:
                 badges.append(due_badge(d))

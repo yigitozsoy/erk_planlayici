@@ -1,6 +1,6 @@
 """Sosyal hayat: yaklaşan planlar, doğum günleri, sosyal görevler, geçmiş buluşmalar."""
-from datetime import date
 
+from ..config import day_today
 from ..components import Page, Card, Row, StatTile, TileGrid
 from ..forms import edit_item, bind_row
 from ..i18n import t, due_badge, fmt_day
@@ -34,7 +34,7 @@ class SocialPage(Page):
 
     def refresh(self):
         s, win = self.store, self.win
-        td = date.today()
+        td = day_today()
         evs = [(parse_date(e.get("date")), e) for e in s.all("events")]
         future = sorted([x for x in evs if x[0] and x[0] >= td], key=lambda x: (x[0], x[1].get("time") or ""))
         past = sorted([x for x in evs if x[0] and x[0] < td], key=lambda x: x[0], reverse=True)

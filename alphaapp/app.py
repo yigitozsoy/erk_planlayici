@@ -33,14 +33,14 @@ def _send_to_running(cmd: str) -> bool:
 def _install_excepthook():
     """PyQt, bir slot içindeki yakalanmamış hatada süreci kapatır. Bunun yerine hatayı kaydet, devam et."""
     import traceback
-    from .config import DATA_DIR
+    from .config import APP_DIR
 
     def hook(tp, val, tb):
         text = "".join(traceback.format_exception(tp, val, tb))
         sys.stderr.write(text)
         try:
             from datetime import datetime
-            with open(os.path.join(DATA_DIR, "error.log"), "a", encoding="utf-8") as f:
+            with open(os.path.join(APP_DIR, "error.log"), "a", encoding="utf-8") as f:
                 f.write(f"\n--- {datetime.now():%Y-%m-%d %H:%M:%S}\n{text}")
         except OSError:
             pass
@@ -83,6 +83,8 @@ def main():
 
     from .theme import theme
     theme.apply()
+    from .config import migrate_old_data
+    migrate_old_data()                     # 1.x: %LOCALAPPDATA%\alpha → Belgeler\alpha (bir kez)
     from .store import Store
     from .window import MainWindow
     store = Store()
