@@ -102,7 +102,17 @@ class SportPage(Page):
         self.c_food.head_widget(gear)
         self.c_meals = Card(t("add_meal"), add_tip=t("add_meal"))
         self.c_meals.add_clicked.connect(lambda: edit_item(win, "meals"))
-        self.row(self.c_food, self.c_meals)
+        meals_col = QWidget()
+        mv = QVBoxLayout(meals_col)
+        mv.setContentsMargins(0, 0, 0, 0)
+        mv.setSpacing(16)
+        mv.addWidget(self.c_meals)
+        # besin kütüphanesi: 100 g değerleri; gram yazınca öğün hesaplanır (komut satırı da bunu kullanır)
+        self.c_foods = Card(t("foods_title"), add_tip=t("new_foods"))
+        self.c_foods.add_clicked.connect(lambda: edit_item(win, "foods"))
+        mv.addWidget(self.c_foods)
+        mv.addStretch(1)
+        self.row(self.c_food, meals_col)
 
         self.c_log = Card(t("workout_log"), add_tip=t("add_workout"))
         self.c_log.add_clicked.connect(lambda: open_workout(win))
@@ -121,8 +131,39 @@ class SportPage(Page):
         rv.addStretch(1)
         self.row(self.c_log, right_col, stretches=[3, 2])
 
+    def _log_food(self, f):
+        from PyQt6.QtWidgets import QInputDialog
+        from .. import nutrition as nu
+        txt, ok = QInputDialog.getText(self.win, f.get("name", ""), t("food_amount"),
+                                       text="1" if f.get("unit") and f.get("unit_g") else "100")
+        if not ok or not txt.strip():
+            return
+        try:
+            m = nu.meal_from(f, txt, day_today().isoformat())
+        except ValueError:
+            self.win.toast(t("food_bad_amount", x=txt))
+            return
+        self.store.add("meals", m)
+        self.win.toast(t("meal_added", x=m["name"]))
+
+    def _fill_foods(self):
+        from .. import nutrition as nu
+        c, win = self.c_foods, self.win
+        c.clear()
+        foods = sorted(self.store.all("foods"), key=lambda f: nu._key(f.get("name")))
+        c.set_sub(t("foods_sub", n=len(foods)))
+        for f in foods:
+            sub = t("food_row", k=fmt_num(f.get("kcal") or 0, 0), p=fmt_num(f.get("protein") or 0, 1),
+                    c=fmt_num(f.get("carbs") or 0, 1), f=fmt_num(f.get("fat") or 0, 1))
+            if f.get("unit") and f.get("unit_g"):
+                sub += t("food_unit_sub", u=f["unit"], g=fmt_num(f["unit_g"], 0))
+            r = Row(f.get("name", ""), sub)
+            c.add(bind_row(win, r, "foods", f, [(t("food_log"), lambda f=f: self._log_food(f))]))
+        if not foods:
+            c.empty(t("foods_empty"))
+
     def _add_meal(self, m):
-        keep = {k: m.get(k) for k in ("name", "kcal", "protein", "carbs", "fat")}
+        keep = {k: m.get(k) for k in ("name", "kcal", "protein", "carbs", "fat", "food", "grams") if m.get(k) is not None}
         self.store.add("meals", keep | {"date": day_today().isoformat()})
         self.win.toast(t("meal_added", x=m.get("name", "")))
 
@@ -206,6 +247,7 @@ class SportPage(Page):
                 fl.addWidget(b)
             c.add(box)
 
+        self._fill_foods()
         mc = self.c_meals
         mc.clear()
         meals = sorted(s.meals_on(td), key=lambda m: m.get("created") or "")

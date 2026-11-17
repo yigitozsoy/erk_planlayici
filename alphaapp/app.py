@@ -103,9 +103,19 @@ def main():
         if s is None:
             return
 
+        buf = bytearray()
+
         def read():
-            bytes(s.readAll())
-            QTimer.singleShot(0, win.bring_front)
+            buf.extend(bytes(s.readAll()))
+            if not buf.startswith(b"{"):          # ikinci kez açıldı: pencereyi öne getir
+                buf.clear()
+                QTimer.singleShot(0, win.bring_front)
+                return
+            if buf.endswith(b"\n"):               # komut satırı (cli.py): bu depoda çalıştır, yanıtı yaz
+                from .cli import handle_request
+                s.write(handle_request(store, bytes(buf)))
+                s.flush()
+                buf.clear()
         s.readyRead.connect(read)
         s.disconnected.connect(s.deleteLater)
     server.newConnection.connect(on_conn)

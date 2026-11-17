@@ -196,6 +196,26 @@ değilse kapanır; widget kaldırılınca (`remove()`) ana pencere de kapalıysa
 komutu `--widget` ekler: widget açıksa yalnızca widget gelir.
 Koleksiyonlar `store.py` başındaki belge metninde. Kategori: education, work, sport, social, finance, personal.
 
+## Komut satırı: kullanıcının verisine kayıt ekle / oku (Claude bunu kullanır)
+Yiğit "şunu yedim / antrenman yaptım / uyudum / görev ekle" derse data.json'a ELLE YAZMA, kodu okuma: şunu çalıştır
+(proje kökünden; uygulama açıksa istek ona gider, kapalıysa dosyaya güvenle yazılır):
+```bash
+python -X utf8 -m alphaapp.cli help          # tüm komutlar (kısa)
+python -X utf8 -m alphaapp.cli day           # bugünün özeti (öğün toplamı / hedef, antrenman, uyku, görev, alışkanlık)
+python -X utf8 -m alphaapp.cli meal "pirinç:200" "tavuk göğsü:400" "protein tozu:2 ölçek"   # besin kütüphanesinden
+python -X utf8 -m alphaapp.cli food add "Mercimek (çiğ)" kcal=343 protein=24 carbs=60 fat=1.5 src=<kaynak>
+python -X utf8 -m alphaapp.cli add sleep date=dün bed=23:40 wake=07:10 quality=4
+python -X utf8 -m alphaapp.cli add tasks title="..." due=yarın category=education
+python -X utf8 -m alphaapp.cli list workouts --from -7 --fields date,kind,exercises
+```
+Python tam yolu: `%LOCALAPPDATA%\Python\pythoncore-3.14-64\python.exe`. Koleksiyon alanları: `cli colls` (store.py belge
+metni). Besin yoksa `meal` hiçbir şey yazmaz ve "kütüphanede yok" der: değeri (100 g, çiğ/pişmiş belirt) diyetkolik gibi
+bir kaynaktan bul, `food add` ile ekle, sonra `meal`. Kullanıcı gramı çiğ ağırlıkla söyler ("200 g çiğ pirinç").
+Kod: alphaapp/cli.py (run = komutlar, handle_request = app.py sunucusu {"cli": argv}
+ → {"code", "out"}),
+alphaapp/nutrition.py (find_food, parse_amount: birim tanımlı besinde 20'den küçük çıplak sayı = birim).
+Spor sayfasında "Besin kütüphanesi" kartı (sağ tık / ⋮ > Bugüne ekle…). Yeni komut eklersen smoke tests/steps/komut.py.
+
 ## Tuzaklar
 - PyQt, slot / sanal metottaki yakalanmamış hatada süreci **0xC0000409 ile sessizce kapatır**. Testte excepthook
   bunları toplayıp başarısız sayar.

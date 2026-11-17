@@ -306,6 +306,16 @@ def _schema(coll, store):
                 ("image", "f_wish_image", "image", None),
                 ("bought", "f_bought", "bool", None),
                 ("note", "f_note", "text", None)]
+    if coll == "foods":
+        return [("name", "f_food_name", "text", None),
+                ("kcal", "f_kcal100", "number?", None),
+                ("protein", "f_protein100", "number?", None),
+                ("carbs", "f_carbs100", "number?", None),
+                ("fat", "f_fat100", "number?", None),
+                ("unit", "f_food_unit", "combo", _with_used(["ölçek", "adet", "dilim", "kaşık"], store, "foods", "unit")),
+                ("unit_g", "f_food_unit_g", "number?", None),
+                ("aliases", "f_food_aliases", "text", None),
+                ("note", "f_note", "text", None)]
     if coll == "meals":
         return [("name", "f_meal_name", "combo", _with_used([], store, "meals", "name")),
                 ("date", "f_date", "date", None),
@@ -320,7 +330,8 @@ REQUIRED = {"tasks": "title", "routine": "title", "courses": "name", "exams": "c
             "events": "title", "birthdays": "name", "debts": "person", "investments": "name",
             "transactions": "amount", "workouts": "date", "habits": "name", "meals": "name",
             "accounts": "name", "recurring": "name", "goals": "title", "transcript": "name", "media": "title",
-            "lifts": "name", "wishlist": "name", "cv": "title", "bucket": "title", "places": "name"}
+            "lifts": "name", "wishlist": "name", "cv": "title", "bucket": "title", "places": "name",
+            "foods": "name"}
 
 GOAL_HORIZONS = ("life", "y10", "y3", "year", "term", "action")
 

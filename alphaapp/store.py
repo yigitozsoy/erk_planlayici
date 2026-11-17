@@ -22,7 +22,8 @@ Koleksiyonlar (her kayıt bir dict, "id" alanı otomatik):
   notes        notlar         title, body, category, pinned, updated
   days         günlük plan    date, intention, planned_at
   habits       alışkanlık     name, category, goal (haftada gün), note, days[iso]
-  meals        beslenme       date, name, kcal, protein, carbs, fat
+  meals        beslenme       date, name, kcal, protein, carbs, fat, food (besin id), grams (nutrition.meal_from)
+  foods        besin kütüphanesi name, kcal, protein, carbs, fat (100 g başına), unit, unit_g, aliases, note, src
   accounts     nakit / hesap  name, balance, note
   recurring    sabit gelir/gider name, kind(income|expense), amount, day (ayın kaçı, boşsa 1), category, active, note
   goals        hayat hedefleri title, area (LIFE_AREAS; eski kategori değerleri life_area ile eşlenir), horizon (life|y10|y3|year|term|action), parent (goal id),
@@ -57,7 +58,7 @@ from .config import DATA_FILE, BACKUP_DIR, prefs
 COLLECTIONS = ("tasks", "routine", "courses", "exams", "workouts", "projects", "events", "birthdays",
                "transactions", "debts", "investments", "notes", "days", "habits", "meals", "accounts",
                "recurring", "goals", "wheel", "transcript", "media", "templates", "body", "lifts",
-               "mood", "sleep", "sessions", "wishlist", "cv", "bucket", "places")
+               "mood", "sleep", "sessions", "wishlist", "cv", "bucket", "places", "foods")
 
 CATEGORIES = ("education", "work", "sport", "social", "finance", "personal")
 
