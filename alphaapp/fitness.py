@@ -38,7 +38,6 @@ EXERCISES = {
     "Cable Lateral Raise": (("side_delts",), ()),
     "Cable Reverse Fly": (("rear_delts",), ("upper_back",)),
     "Reverse Pec Deck": (("rear_delts",), ("upper_back",)),
-    "Face Pull": (("rear_delts",), ("upper_back", "traps")),
     "Barbell Shrug": (("traps",), ("forearms",)),
     "Lat Pulldown": (("lats",), ("biceps", "rear_delts")),
     "Lat Pulldown Wide Grip": (("lats",), ("biceps", "rear_delts")),
@@ -86,7 +85,71 @@ EXERCISES = {
     "Cable Face Pull": (("rear_delts",), ("side_delts", "traps", "upper_back")),
     "Single Arm High Row": (("lats", "upper_back"), ("rear_delts", "biceps")),
     "Incline Dumbbell Curl": (("biceps",), ("forearms",)),
+    # 2026-11: kullanıcının uygulamasından eksikler (assets/muscle-body/eksikler ekran görüntüleri, adlar oradaki gibi)
+    "Weighted Dips": (("chest", "triceps"), ("front_delts",)),
+    "Decline Chest Press Machine": (("chest",), ("triceps", "front_delts")),
+    "Smith Machine Bench Press": (("chest",), ("front_delts", "triceps")),
+    "Dumbbell Chest Fly": (("chest",), ("front_delts",)),
+    "Incline Chest Press Machine": (("chest", "front_delts"), ("triceps",)),
+    "Machine Lateral Raise": (("side_delts",), ("front_delts", "rear_delts")),
+    "Dumbbell Overhead Press": (("front_delts", "side_delts"), ("triceps", "traps")),
+    "Arnold Press": (("front_delts", "side_delts"), ("triceps", "chest", "traps")),
+    "Smith Machine Overhead Press": (("front_delts", "side_delts", "triceps"), ("chest", "traps")),
+    "Weighted Pull Up": (("lats", "upper_back"), ("biceps", "rear_delts", "forearms")),
+    "Chest Supported T Bar Row": (("traps", "upper_back", "lats"), ("rear_delts", "biceps", "forearms")),
+    "Lat Pulldown Narrow Grip": (("lats", "upper_back"), ("biceps", "rear_delts", "forearms")),
+    "Lat Pulldown Supinated": (("lats", "biceps", "upper_back"), ("rear_delts", "forearms")),
+    "Machine Pulldown": (("lats", "upper_back"), ("biceps", "rear_delts")),
+    "Single Arm Dumbbell Row": (("lats", "upper_back"), ("traps", "rear_delts", "biceps", "forearms")),
+    "Wide Grip Barbell Row": (("traps", "upper_back", "rear_delts"), ("lats", "biceps", "forearms")),
+    "Smith Machine Row": (("traps", "upper_back"), ("rear_delts", "lats", "biceps", "forearms")),
+    "Wide Grip Seated Cable Row": (("traps", "upper_back", "rear_delts"), ("lats", "biceps")),
+    "Chest Supported Wide Grip Row": (("traps", "upper_back"), ("rear_delts", "lats", "forearms")),
+    "Chest Supported Elbowing Row": (("traps", "upper_back", "rear_delts"), ("lats",)),
+    "Reverse Fly Machine": (("rear_delts",), ("upper_back", "traps")),
+    "Dumbbell Romanian Deadlift": (("glutes", "hamstrings"), ("lower_back", "forearms")),
+    "45 Back Focused Extension": (("lower_back", "hamstrings"), ("glutes",)),
+    "Dumbbell Front Lunge": (("quads", "glutes", "hamstrings"), ("adductors",)),
+    "Wrist Extension": (("forearms",), ()),
+    "Alternating Dumbbell Curl": (("biceps",), ("forearms",)),
+    "Preacher Curl Machine": (("biceps",), ()),
+    "Dumbbell Overhead Extension": (("triceps",), ()),
+    "Single Arm Dumbbell Overhead Extension": (("triceps",), ()),
+    "Dumbbell Skull Crusher": (("triceps",), ()),
+    "Dumbbell Kickback": (("triceps",), ()),
+    "Hanging Knee Raise": (("abs",), ("obliques",)),
+    "Reverse Crunch": (("abs",), ("obliques",)),
+    "Dragon Fly Situps": (("abs", "obliques"), ()),
+    "Dual Leg Liftover": (("abs", "obliques"), ()),
+    "Hollow Hold": (("abs",), ("obliques",)),
+    "Side Plank": (("obliques",), ("abs",)),
+    "Flutter Kicks": (("abs",), ("obliques",)),
 }
+
+# uygulamadaki ad → katalogdaki ad (kayıtlar eski adla kalır; iki ad da aynı hareketi bulur, listede tek görünür)
+ALIASES = {
+    "Face Pull": "Cable Face Pull",
+    "Barbell Squat": "Squat",
+    "Conventional Deadlift": "Deadlift",
+    "Barbell Romanian Deadlift": "Romanian Deadlift",
+    "Machine Seated Hip Abduction": "Hip Abduction Machine",
+    "Pecdeck Fly": "Pec Deck",
+    "Dumbbell Biceps Curl": "Dumbbell Curl",
+    "Dumbbell Incline Curl": "Incline Dumbbell Curl",
+    "EZ Bar Skull Crusher": "Skull Crusher",
+    "Cable Overhead Extension": "Overhead Triceps Extension",
+    "Machine Overhead Press": "Shoulder Press Machine",
+    "Seated Dumbbell Shoulder Press": "Dumbbell Shoulder Press",
+}
+
+
+def canonical(name):
+    """Takma adı katalogdaki ada çevirir (büyük/küçük harf duyarsız); yoksa adı olduğu gibi döner."""
+    key = (name or "").strip().casefold()
+    for k, v in ALIASES.items():
+        if k.casefold() == key:
+            return v
+    return (name or "").strip()
 
 # Kullanıcının uygulamasındaki kas haritalarından (spor ekran görüntüleri, 2026-11): hareket → {kas: ağırlık}.
 # Renk → ağırlık: kusursuz / çok yüksek 1 · yüksek 0.75 · sinerjist 0.5 · biraz 0.35 · düşük 0.2.
@@ -101,7 +164,6 @@ ACTIVATION = {
     "Rope Pushdown": {"triceps": _P, "forearms": _L},
     "Triceps Pushdown": {"triceps": _P, "forearms": _L, "abs": _L},
     "Cable Face Pull": {"rear_delts": _P, "side_delts": _H, "traps": _SO, "upper_back": _SO},
-    "Face Pull": {"rear_delts": _P, "side_delts": _H, "traps": _SO, "upper_back": _SO},
     "Lat Pulldown Wide Grip": {"lats": _P, "upper_back": _H, "traps": _S, "rear_delts": _S, "biceps": _SO,
                                "forearms": _SO, "chest": _L},
     "Chest Supported Machine Row": {"lats": _P, "upper_back": _P, "traps": _P, "biceps": _S, "forearms": _S,
@@ -114,6 +176,96 @@ ACTIVATION = {
     "Leg Extension": {"quads": _P, "adductors": _SO},
     "Seated Leg Curl": {"hamstrings": _P, "calves": _SO, "adductors": _L, "lower_back": _L},
     "Seated Calf Raise": {"calves": _H},
+    # --- 2026-11 eksikler. Renk: koyu kırmızı kusursuz / kırmızı çok yüksek 1, turuncu yüksek .75, sarı sinerjist
+    #     .5, yeşil biraz .35, camgöbeği düşük .2
+    "Weighted Dips": {"chest": _P, "triceps": _H, "front_delts": _L, "side_delts": _L, "abs": _L, "forearms": _L},
+    "Dips": {"chest": _P, "front_delts": _H, "triceps": _H, "abs": _L, "forearms": _L, "side_delts": _L},
+    "Decline Chest Press Machine": {"chest": _P, "front_delts": _S, "triceps": _H, "side_delts": _L},
+    "Smith Machine Bench Press": {"chest": _P, "front_delts": _H, "triceps": _H, "forearms": _L,
+                                  "side_delts": _L},
+    "Dumbbell Bench Press": {"chest": _P, "front_delts": _H, "triceps": _S, "forearms": _L, "side_delts": _L},
+    "Dumbbell Chest Fly": {"chest": _P, "front_delts": _S, "biceps": _L, "side_delts": _L},
+    "Bench Press": {"chest": _P, "front_delts": _H, "triceps": _H, "forearms": _L, "side_delts": _L},
+    "Smith Machine Incline Bench Press": {"chest": _P, "front_delts": _SO, "triceps": _H, "forearms": _L,
+                                          "side_delts": _SO},
+    "Push Up": {"chest": _P, "front_delts": _S, "triceps": _H, "abs": _L, "forearms": _L, "side_delts": _L},
+    "Incline Bench Press": {"chest": _P, "front_delts": _SO, "triceps": _H, "forearms": _L, "side_delts": _SO},
+    "Incline Chest Press Machine": {"chest": _P, "front_delts": _P, "triceps": _H, "side_delts": _L},
+    "Pec Deck": {"chest": _P, "front_delts": _S, "biceps": _L, "side_delts": _L},
+    "Machine Lateral Raise": {"side_delts": _P, "front_delts": _S, "rear_delts": _S, "traps": _L},
+    "Dumbbell Overhead Press": {"front_delts": _P, "side_delts": _P, "triceps": _S, "traps": _SO, "abs": _L,
+                                "lower_back": _L, "forearms": _L, "rear_delts": _L},
+    "Dumbbell Shoulder Press": {"front_delts": _P, "side_delts": _P, "triceps": _S, "chest": _SO, "traps": _SO,
+                                "forearms": _L, "rear_delts": _L},
+    "Arnold Press": {"front_delts": _P, "side_delts": _H, "triceps": _S, "chest": _S, "traps": _SO,
+                     "forearms": _L, "lower_back": _L, "rear_delts": _L},
+    "Barbell Overhead Press": {"front_delts": _P, "side_delts": _H, "triceps": _H, "chest": _S, "traps": _SO,
+                               "abs": _L, "lower_back": _L, "forearms": _L},
+    "Smith Machine Overhead Press": {"front_delts": _P, "side_delts": _H, "triceps": _H, "chest": _S,
+                                     "traps": _SO, "lower_back": _L, "forearms": _L, "rear_delts": _L},
+    "Shoulder Press Machine": {"front_delts": _P, "side_delts": _H, "chest": _S, "triceps": _S, "traps": _SO},
+    "Pull Up": {"lats": _P, "upper_back": _H, "biceps": _H, "rear_delts": _S, "forearms": _S, "traps": _SO,
+                "triceps": _L},
+    "Weighted Pull Up": {"lats": _P, "upper_back": _P, "biceps": _H, "rear_delts": _S, "forearms": _S,
+                         "triceps": _L},
+    "Chin Up": {"lats": _P, "biceps": _P, "upper_back": _H, "rear_delts": _S, "forearms": _S, "triceps": _L},
+    "Chest Supported T Bar Row": {"traps": _P, "upper_back": _H, "lats": _H, "rear_delts": _S, "biceps": _S,
+                                  "forearms": _S, "lower_back": _L},
+    "Lat Pulldown Narrow Grip": {"lats": _P, "upper_back": _H, "biceps": _S, "rear_delts": _S, "forearms": _S,
+                                 "triceps": _L},
+    "Lat Pulldown Supinated": {"lats": _P, "biceps": _P, "upper_back": _H, "rear_delts": _SO, "forearms": _SO},
+    "Machine Pulldown": {"lats": _P, "upper_back": _H, "biceps": _S, "rear_delts": _S, "forearms": _SO},
+    "Single Arm Dumbbell Row": {"lats": _P, "upper_back": _P, "traps": _S, "rear_delts": _S, "biceps": _S,
+                                "forearms": _S, "lower_back": _L},
+    "Wide Grip Barbell Row": {"traps": _P, "upper_back": _P, "rear_delts": _H, "lats": _S, "biceps": _S,
+                              "forearms": _S, "lower_back": _SO},
+    "Barbell Row": {"traps": _P, "upper_back": _P, "rear_delts": _S, "lats": _SO, "biceps": _S, "forearms": _S,
+                    "lower_back": _SO},
+    "Smith Machine Row": {"traps": _P, "upper_back": _P, "rear_delts": _S, "lats": _SO, "biceps": _S,
+                          "forearms": _S},
+    "Wide Grip Seated Cable Row": {"traps": _P, "upper_back": _P, "rear_delts": _H, "lats": _S, "biceps": _S,
+                                   "forearms": _SO},
+    "Chest Supported Wide Grip Row": {"traps": _P, "upper_back": _P, "rear_delts": _S, "lats": _SO,
+                                      "forearms": _S, "biceps": _SO},
+    "Chest Supported Elbowing Row": {"traps": _P, "upper_back": _P, "rear_delts": _P, "lats": _SO,
+                                     "biceps": _SO},
+    "Reverse Fly Machine": {"rear_delts": _P, "side_delts": _S, "upper_back": _SO, "traps": _SO, "lats": _L},
+    "Squat": {"quads": _P, "glutes": _H, "adductors": _S, "lower_back": _S, "hamstrings": _SO, "calves": _L,
+              "abs": _L},
+    "Romanian Deadlift": {"glutes": _P, "hamstrings": _P, "lower_back": _S, "forearms": _S, "adductors": _SO,
+                          "lats": _L},
+    "Dumbbell Romanian Deadlift": {"glutes": _P, "hamstrings": _P, "lower_back": _S, "forearms": _SO,
+                                   "lats": _L},
+    "Deadlift": {"glutes": _P, "hamstrings": _H, "lower_back": _S, "forearms": _S, "quads": _S, "lats": _SO,
+                 "traps": _L, "upper_back": _L},
+    "Hip Abduction Machine": {"glutes": _P},
+    "Bulgarian Split Squat": {"quads": _P, "glutes": _P, "adductors": _S, "hamstrings": _SO, "calves": _L},
+    "45 Back Focused Extension": {"lower_back": _P, "hamstrings": _H, "glutes": _S, "calves": _L},
+    "Dumbbell Front Lunge": {"quads": _P, "glutes": _P, "hamstrings": _H, "adductors": _L, "calves": _L},
+    "Lunge": {"quads": _P, "glutes": _P, "hamstrings": _H, "adductors": _L, "calves": _L},
+    "Hack Squat": {"quads": _P, "adductors": _S, "glutes": _SO, "calves": _L},
+    "Wrist Curl": {"forearms": _P},
+    "Wrist Extension": {"forearms": _P},
+    "Dumbbell Hammer Curl": {"biceps": _H, "forearms": _H},
+    "Incline Dumbbell Curl": {"biceps": _P, "forearms": _L},
+    "Dumbbell Curl": {"biceps": _P, "forearms": _L},
+    "Alternating Dumbbell Curl": {"biceps": _P, "forearms": _SO},
+    "Preacher Curl Machine": {"biceps": _P, "forearms": _L},
+    "Overhead Triceps Extension": {"triceps": _P},
+    "Dumbbell Overhead Extension": {"triceps": _P, "forearms": _L},
+    "Single Arm Dumbbell Overhead Extension": {"triceps": _P, "forearms": _L},
+    "Skull Crusher": {"triceps": _P, "forearms": _L},
+    "Dumbbell Skull Crusher": {"triceps": _P, "forearms": _L},
+    "Dumbbell Kickback": {"triceps": _H},
+    "Plank": {"abs": _H, "obliques": _S},
+    "Crunch": {"abs": _H, "obliques": _SO},
+    "Reverse Crunch": {"abs": _H, "obliques": _SO},
+    "Dragon Fly Situps": {"abs": _P, "obliques": _H},
+    "Hanging Knee Raise": {"abs": _P, "obliques": _S},
+    "Dual Leg Liftover": {"abs": _S, "obliques": _S},
+    "Hollow Hold": {"abs": _P, "obliques": _S, "adductors": _L},
+    "Side Plank": {"obliques": _P, "abs": _S},
+    "Flutter Kicks": {"abs": _S, "obliques": _SO, "adductors": _L},
 }
 # katalogda olmayan adlar için anahtar kelime tahmini (sıra önemli)
 _GUESS = (("calf", ("calves",)), ("leg curl", ("hamstrings",)), ("leg extension", ("quads",)),
@@ -129,7 +281,7 @@ _GUESS = (("calf", ("calves",)), ("leg curl", ("hamstrings",)), ("leg extension"
 
 
 def _activation(name):
-    key = (name or "").strip().casefold()
+    key = canonical(name).casefold()
     for k, v in ACTIVATION.items():
         if k.casefold() == key:
             return v
@@ -153,7 +305,7 @@ def muscles_of(name):
     if act is not None:
         order = sorted(act, key=lambda m: -act[m])
         return (tuple(m for m in order if act[m] >= 0.75), tuple(m for m in order if 0.35 <= act[m] < 0.75))
-    key = (name or "").strip()
+    key = canonical(name)
     for k, v in EXERCISES.items():
         if k.casefold() == key.casefold():
             return v
@@ -313,7 +465,7 @@ STANDARDS = {
     "Dumbbell Bench Press": 0.37, "Dumbbell Incline Chest Press": 0.32, "Chest Press Machine": 0.9,
     "Cable Fly": 0.25, "Pec Deck": 0.6, "Barbell Overhead Press": 0.65, "Dumbbell Shoulder Press": 0.27,
     "Shoulder Press Machine": 0.6, "Dumbbell Lateral Raise": 0.13, "Cable Lateral Raise": 0.08,
-    "Cable Reverse Fly": 0.1, "Reverse Pec Deck": 0.45, "Face Pull": 0.35, "Barbell Shrug": 1.3,
+    "Cable Reverse Fly": 0.1, "Reverse Pec Deck": 0.45, "Cable Face Pull": 0.35, "Barbell Shrug": 1.3,
     "Lat Pulldown": 0.85, "Lat Pulldown Wide Grip": 0.8, "Chest Supported Machine Row": 0.75,
     "Seated Cable Row": 0.85, "Barbell Row": 0.85, "Dumbbell Row": 0.4, "T-Bar Row": 0.9, "Deadlift": 1.5,
     "Romanian Deadlift": 1.1, "Back Extension": 0.3, "Barbell Curl": 0.45, "EZ Bar Curl": 0.45,
@@ -328,7 +480,7 @@ LEVELS = (0.45, 0.75, 1.05, 1.35)     # oran / standart → 0 yeni başlayan · 
 
 
 def standard(name):
-    key = (name or "").casefold()
+    key = canonical(name).casefold()
     for k, v in STANDARDS.items():
         if k.casefold() == key:
             return v

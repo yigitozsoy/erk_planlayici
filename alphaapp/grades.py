@@ -88,7 +88,9 @@ def exam_names(tr=True):
 
 def exam_order(name):
     k = exam_kind(name)
-    return _ORDER[k] if k else len(_ORDER) - 2      # bilinmeyenler finalden önce
+    if k is None:    # "Quiz 2", "Ödev 1": numarasız türün yerinde dursun (ad kayıtta olduğu gibi kalır)
+        k = exam_kind(re.sub(r"\s*\d+\s*$", "", name or ""))
+    return _ORDER[k] if k else _ORDER["final"] - 0.5      # bilinmeyenler finalden önce
 
 
 def find_exam_kind(text):

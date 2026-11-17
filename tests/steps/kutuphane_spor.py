@@ -104,7 +104,7 @@ def _fitness(ctx):
     from alphaapp.pages.sport_ui import WorkoutDialog, TemplateDialog, focus_text
     from PyQt6.QtCore import QPointF
     td = day_today()
-    assert fitness.muscles_of("bench press")[0] == ("chest",)
+    assert fitness.muscles_of("bench press")[0][0] == "chest"
     assert fitness.muscles_of("Incline Dumbbell Curl")[0] == ("biceps",)
     assert fitness.first_int("6-8") == 6 and fitness.intensity(18) == 3 and fitness.intensity(26) == 5
     assert abs(fitness.e1rm(100, 5) - 116.6667) < 0.01 and fitness.e1rm(80, 1) == 80
@@ -117,7 +117,7 @@ def _fitness(ctx):
         {"name": "Cable Fly", "sets": 3, "reps": "10", "rir": "1"}]})
     assert fitness.template_sets(tp) == 6
     load = fitness.muscle_load(tp["exercises"])
-    assert load["chest"] == 6 and load["front_delts"] == 3 and load["triceps"] == 1.5, load
+    assert load["chest"] == 6 and load["front_delts"] == 3.75 and load["triceps"] == 2.25, load   # haritalı ağırlıklar
     # programdan başlat: set sayısı, tekrar, geçen seferki kilo dolu
     d = WorkoutDialog(win, template=tp)
     assert len(d.blocks) == 2 and len(d.blocks[0].rows) == 3
@@ -193,6 +193,9 @@ def _fitness(ctx):
     assert fitness.muscles_of("Leg Press")[0] == ("quads", "adductors")
     assert fitness.weights_of("Seated Calf Raise") == {"calves": 0.75}
     assert fitness.muscles_of("Cable Face Pull")[0][0] == "rear_delts"
+    assert fitness.muscles_of("Face Pull") == fitness.muscles_of("Cable Face Pull")          # takma ad
+    assert fitness.weights_of("Barbell Squat")["quads"] == 1.0 and "Face Pull" not in fitness.EXERCISES
+    assert fitness.weights_of("Arnold Press")["front_delts"] == 1.0 and fitness.standard("Barbell Squat")
     hero._set_mode("dev")
     _pump(app)
     # model: kas seçimi ve dönüş
@@ -288,6 +291,7 @@ def _mind(ctx):
     course = store.all("courses")[0]
     store.update("courses", course["id"], study_days=[])
     win.show_page("education")
+    win.pages["education"].show_course(course["id"])
     _pump(app)
     cc = [w for w in win.pages["education"].findChildren(CourseClock) if w.c["id"] == course["id"]][0]
     cc.b_sw.click()
@@ -460,3 +464,41 @@ def _games(ctx):
     win.pages["library"].refresh()
     _pump(app, 4)
     store.delete("media", g["id"])
+
+
+@step("Beden: ev sekmesinde başlar (kilo / yağ / gelişim), Antrenmanlar / Beslenme, ayrıntıya kaydırma sekme değiştirir")
+def _body_tabs(ctx):
+    win, app = ctx["win"], ctx["app"]
+    from alphaapp.i18n import t
+    sp = win.pages["sport"]
+    win.show_page("sport")
+    _pump(app)
+    assert t("nav_sport") in ("Beden", "Body") and t("cat_sport") in ("Spor", "Sport")
+    assert list(sp.tabs.btns)[0] == "home"
+    sp.tabs.btns["home"].click()
+    _pump(app)
+    assert sp.c_stats.isVisible() and sp.c_dev.isVisible() and sp.c_hero.isVisible() and sp.c_body.isVisible()
+    assert not sp.c_log.isVisible() and not sp.c_food.isVisible() and not sp.c_week.isVisible()
+    if ctx["shots"]:
+        _pump(app, 6)
+        win.grab().save(os.path.join(ctx["shots"], "body_tab_home.png"))
+    sp.tabs.btns["food"].click()
+    _pump(app)
+    assert sp.c_food.isVisible() and sp.c_meals.isVisible() and sp.c_foods.isVisible()
+    assert not sp.c_log.isVisible() and not sp.c_hero.isVisible() and not sp.c_stats.isVisible()
+    assert all(b.isVisible() for b in sp.tab_actions["food"]) and not any(b.isVisible() for b in sp.tab_actions["train"])
+    if ctx["shots"]:
+        _pump(app, 6)
+        win.grab().save(os.path.join(ctx["shots"], "body_tab_food.png"))
+    sp.scroll_to(sp.c_body)              # kilo ayrıntısı → ev sekmesi
+    _pump(app)
+    assert sp.tabs.current == "home" and sp.c_body.isVisible() and not sp.c_food.isVisible()
+    sp.scroll_to(sp.c_log)               # günlük → Antrenmanlar
+    _pump(app)
+    assert sp.tabs.current == "train" and sp.c_log.isVisible() and sp.c_week.isVisible()
+    if ctx["shots"]:
+        sp.verticalScrollBar().setValue(0)
+        _pump(app, 6)
+        win.grab().save(os.path.join(ctx["shots"], "body_tab_train.png"))
+    sp.tabs.btns["home"].click()
+    _pump(app)

@@ -354,6 +354,8 @@ def _grades(ctx):
     win.show_page("education")
     _pump(app)
     page = win.pages["education"]
+    page.tabs.btns["grades"].click()        # not çubukları Notlar sekmesinde
+    _pump(app)
     from alphaapp.pages.grades_view import _Combo
     combos = page.c_grades.findChildren(_Combo)
     assert len(combos) == 2 * len(store.all("courses")), len(combos)
@@ -407,6 +409,9 @@ def _grades(ctx):
                for x in store.all("courses"))
     page.c_transcript._toggle("1.1")
     _pump(app, 4)
+    from alphaapp.pages.grades_view import _TermTile
+    tiles = page.c_transcript.findChildren(_TermTile)
+    assert tiles and sum(1 for x in tiles if x.property("open")) == 1          # sınıf × dönem ızgarası
     # dönemi bitir: gerçek harf transkripte yazılır, tekrar alınan ders güncellenir, geri al
     store.update("courses", c["id"], letter="AA", name="Fizik I", credits=6)
     n0 = len(store.all("transcript"))
@@ -416,6 +421,137 @@ def _grades(ctx):
     store.update("transcript", changed[0]["id"], letter="DC", old_letter=None)
     store.update("courses", c["id"], letter=None)
     _pump(app)
+
+
+@step("sınav sırası: ders kartı = not çubuğu (Quiz 1/2 finalden önce); not alanına NA → 0")
+def _exam_order(ctx):
+    win, app, store = ctx["win"], ctx["app"], ctx["store"]
+    from alphaapp import grades
+    from alphaapp.forms import _parse_num
+    from alphaapp.pages.grades_view import course_exams
+    from alphaapp.components import Row
+    assert grades.exam_order("Quiz 2") == grades.exam_order("Quiz") < grades.exam_order("Final")
+    assert grades.exam_order("Bilinmeyen") < grades.exam_order("Final")
+    assert grades.exam_canon("Quiz 2") == "Quiz 2"            # kayıttaki ad değişmez
+    assert _parse_num("NA") == 0.0 and _parse_num("na") == 0.0 and _parse_num("") is None
+    c = store.add("courses", {"name": "Sıra Dersi", "credits": 5})
+    for nm, w, d in (("Final", 40, "2027-01-10"), ("Quiz 2", 2.5, None), ("Vize 2", 30, "2026-12-01"),
+                     ("Vize 1", 25, "2026-12-20"), ("Quiz 1", 2.5, None)):
+        store.add("exams", {"course": c["id"], "name": nm, "weight": w, "date": d})
+    order = [e["name"] for e in course_exams(store, c["id"])]
+    assert order == ["Vize 1", "Vize 2", "Quiz 1", "Quiz 2", "Final"], order
+    win.show_page("education")
+    _pump(app)
+    page = win.pages["education"]
+    page.refresh()
+    page.show_course(c["id"])
+    _pump(app)
+    names = [r.title_lbl.text() for r in page.detail_host.findChildren(Row) if r.isVisible()]
+    shown = [n for n in names if n in order]
+    assert shown == order, shown
+    for e in list(store.all("exams")):
+        if e.get("course") == c["id"]:
+            store.delete("exams", e["id"])
+    store.delete("courses", c["id"])
+
+
+@step("Eğitim sekmeleri: ev / Dersler / Notlar; sınav çalışma kareleri (konu satırları, tıkla = doldur / uzat)")
+def _edu_tabs(ctx):
+    win, app, store = ctx["win"], ctx["app"], ctx["store"]
+    from alphaapp.components import Row
+    from alphaapp.config import day_today
+    from alphaapp.pages.edu_study import ExamStudy, cols_for, wants_blocks, rows_of, goal_of, done_of
+    td = day_today()
+    assert cols_for(12) == 4 and cols_for(20) == 5 and cols_for(3) == 3
+    c = store.add("courses", {"name": "Kare Dersi", "credits": 5, "target": "BA"})
+    v1 = store.add("exams", {"course": c["id"], "name": "Vize 1", "weight": 40,
+                             "date": (td + timedelta(days=5)).isoformat()})
+    q = store.add("exams", {"course": c["id"], "name": "Quiz 1", "weight": 10})
+    old = store.add("exams", {"course": c["id"], "name": "Vize 2", "weight": 10,
+                              "date": (td - timedelta(days=3)).isoformat()})
+    store.add("exams", {"course": c["id"], "name": "Final", "weight": 40})
+    assert not wants_blocks(v1, td) and not wants_blocks(q, td)          # kare atanmadan özete girmez
+    # eski kayıt (study_goal / study_done) satırlara bölünür
+    assert [r["n"] for r in rows_of({"study_goal": 20, "study_done": 7})] == [5, 5, 5, 5]
+    assert done_of({"study_goal": 20, "study_done": 7}) == 7 and goal_of({}) == 0
+    page = win.pages["education"]
+    win.show_page("education")
+    _pump(app)
+    page._tab("home")
+    _pump(app)
+    assert page.c_over.isVisible() and page.c_exams.isVisible() and not page.c_list.isVisible()
+    assert not page.c_grades.isVisible()
+    if ctx["shots"]:
+        _pump(app, 6)
+        win.grab().save(os.path.join(ctx["shots"], "edu_home.png"))
+    # Derslerim satırına tıkla → Dersler sekmesi, o ders seçili
+    r = [x for x in page.c_over.findChildren(Row) if x.title_lbl.text() == "Kare Dersi"][0]
+    r.clicked.emit()
+    _pump(app)
+    assert page.tabs.current == "courses" and page.sel == c["id"] and page.c_list.isVisible()
+    sel_rows = [x for x in page.c_list.findChildren(Row) if x.property("sel")]
+    assert len(sel_rows) == 1 and sel_rows[0].title_lbl.text() == "Kare Dersi"
+    studies = [w for w in page.detail_host.findChildren(ExamStudy) if w.isVisible()]
+    assert len(studies) == 4, len(studies)          # her sınavda (geçmiş Vize 2 dahil) kare atanabilir
+    def study(eid):
+        return [w for w in page.detail_host.findChildren(ExamStudy) if w.eid == eid and w.isVisible()][0]
+    b = study(v1["id"]).blocks
+    assert b.rows == [] and not study(v1["id"]).lbl.isVisible()
+    b.click(0, 2)                                  # yeni konu satırı, 3. soluk kare → 3 karelik konu
+    assert rows_of(store.get("exams", v1["id"])) == [{"t": "", "n": 3, "d": 0}]
+    b.click(1, 4)                                  # ikinci konu: 5 kare
+    b.click(0, 1)                                  # ilk konu: 2 kare dolu
+    b.click(0, 5)                                  # ilk konuyu 6 kareye uzat
+    b.click(1, 0)
+    b.click(1, 0)                                  # son dolu kare → geri al
+    e = store.get("exams", v1["id"])
+    assert [(r["n"], r["d"]) for r in rows_of(e)] == [(6, 2), (5, 0)], rows_of(e)
+    assert goal_of(e) == 11 and done_of(e) == 2 and wants_blocks(e, td)
+    b.cut(0, 1)                                    # buradan sonrasını sil
+    assert [(r["n"], r["d"]) for r in rows_of(store.get("exams", v1["id"]))] == [(1, 1), (5, 0)]
+    b.rows[0]["t"] = "Türev"
+    b.cut(1, 0)                                    # konuyu sil
+    assert rows_of(store.get("exams", v1["id"])) == [{"t": "Türev", "n": 1, "d": 1}]
+    # geçmiş sınava kare: kendisine yazılır, sonrakine değil
+    ob = study(old["id"]).blocks
+    ob.click(0, 3)
+    ob.click(0, 3)
+    assert done_of(store.get("exams", old["id"])) == 4 and not store.get("exams", v1["id"]).get("study_goal")
+    fin = [x for x in store.all("exams") if x.get("course") == c["id"] and x["name"] == "Final"][0]
+    assert goal_of(fin) == 0
+    store.update("exams", v1["id"], study=[{"t": "Türev", "n": 4, "d": 3}, {"t": "İntegral", "n": 3, "d": 1},
+                                           {"t": "Seriler", "n": 5, "d": 2}])
+    page.refresh()
+    _pump(app)
+    assert study(v1["id"]).blocks.rows[1]["t"] == "İntegral" and study(v1["id"]).lbl.isVisible()
+    if ctx["shots"]:
+        page.refresh()
+        page.verticalScrollBar().setValue(0)
+        _pump(app, 6)
+        win.grab().save(os.path.join(ctx["shots"], "edu_courses.png"))
+    # yaklaşan sınavlar (ev): haftalara bölünmüş, geçmiş yok, tarihsizler sonda; ders ikonları
+    from alphaapp.pages.education import course_icon
+    assert course_icon("Akışkanlar Mekaniği I") == "course_fire" and course_icon("Fizik I") == "course_science"
+    assert course_icon("Kalite Kontrol") == "course_gear" and course_icon("Edebiyat") == "cat_education"
+    assert "calendar" not in page.tabs.btns
+    page._tab("home")
+    _pump(app)
+    titles = [x.title_lbl.text() for x in page.c_exams.findChildren(Row)]
+    assert "Kare Dersi · Vize 1" in titles and "Kare Dersi · Final" in titles and "Kare Dersi · Vize 2" not in titles
+    assert titles.index("Kare Dersi · Vize 1") < titles.index("Kare Dersi · Final")
+    assert page.t_study.val.text() == "6 / 12", page.t_study.val.text()
+    if ctx["shots"]:
+        _pump(app, 6)
+        win.grab().save(os.path.join(ctx["shots"], "edu_home2.png"))
+    page.tabs.btns["grades"].click()
+    _pump(app)
+    assert page.c_grades.isVisible() and page.c_transcript.isVisible() and not page.c_exams.isVisible()
+    page._tab("home")
+    for x in list(store.all("exams")):
+        if x.get("course") == c["id"]:
+            store.delete("exams", x["id"])
+    store.delete("courses", c["id"])
+    page.sel = None
 
 
 @step("menüyü düzenle: kategori ekle / adlandır / gizle, sayfası açılır, formda seçilir, silince Kişisel'e geçer")

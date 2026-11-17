@@ -6,13 +6,13 @@ GradesCard      bu dönemin dersleri: adın altında ExamBar (her sınav ağırl
                 ⋮ menüsünde. Üstte gerçek ve hedefin ANO / AGNO'su. İhtimal senaryosu gösterilmez.
 TranscriptCard  dönem dönem transkript (tıkla aç / kapat), Excel'den al, + ile ders ekle.
 """
-from PyQt6.QtCore import Qt, QTimer, QRectF
+from PyQt6.QtCore import Qt, QTimer, QRectF, pyqtSignal
 from PyQt6.QtGui import QPainter, QFont, QFontMetrics, QPainterPath
-from PyQt6.QtWidgets import (QWidget, QGridLayout, QHBoxLayout, QVBoxLayout, QLabel, QComboBox, QPushButton,
+from PyQt6.QtWidgets import (QWidget, QGridLayout, QHBoxLayout, QVBoxLayout, QLabel, QComboBox, QPushButton, QFrame,
                              QInputDialog, QMessageBox, QFileDialog, QMenu, QToolTip)
 
 from .. import grades
-from ..components import Card, Row, button
+from ..components import Card, Row, button, sub_label
 from ..forms import edit_item, bind_row
 from ..config import prefs
 from ..i18n import t, fmt_num, is_tr
@@ -63,6 +63,13 @@ def _lbl(text, obj="RowSub", align=None):
 def _short(name):
     """Sınav adının kısası: kelimelerin büyük baş harfi, sayılar aynen ("Vize 1" → "V1", "Ödev" → "Ö")."""
     return "".join(w if w.isdigit() else w[:1].upper() for w in (name or "").split()) or "?"
+
+
+def exam_pending(e):
+    """Tarihi geçmiş ama notu yok: girildi, sonuç açıklanmadı → "?"."""
+    from ..config import day_today
+    d = parse_date(e.get("date"))
+    return e.get("score") in (None, "") and d is not None and d < day_today()
 
 
 def course_exams(store, cid):
@@ -127,7 +134,7 @@ class ExamBar(QWidget):
                 fr = QRectF(r.x(), 0, r.width() * max(0.0, min(100.0, num(sc))) / 100.0, self.H)
                 p.fillRect(fr, fill.lighter(115) if i == self.hover else fill)
             name = grades.exam_label(e.get("name"), tr) or t("exam")
-            tail = f" {fmt_num(num(sc))}" if scored else ""
+            tail = f" {fmt_num(num(sc))}" if scored else (" ?" if exam_pending(e) else "")
             room = int(r.width()) - 10
             # sığmazsa baş harf(ler): "Vize 1" → "V1", "Laboratuvar" → "L"
             for label in (name + tail, _short(name) + tail, _short(name)):
@@ -145,6 +152,8 @@ class ExamBar(QWidget):
         sc = e.get("score")
         if sc not in (None, ""):
             lines.append(t("exam_bar_score", s=fmt_num(num(sc)), p=fmt_num(num(sc) * num(e.get("weight")) / 100, 1)))
+        elif exam_pending(e):
+            lines.append(t("exam_pending"))
         else:
             lines.append(t("exam_bar_none"))
         if e.get("target") not in (None, ""):
@@ -364,6 +373,21 @@ class GradesCard(Card):
         self.win.toast(t("finish_sem_done", n=len(added) + len(changed)), t("undo"), undo)
 
 
+class _TermTile(QFrame):
+    """Transkript ızgarasında tıklanabilir dönem kutusu (açık olan: hover zemini)."""
+    clicked = pyqtSignal()
+
+    def __init__(self, opened):
+        super().__init__()
+        self.setObjectName("TermTile")
+        self.setProperty("open", bool(opened))
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+
+    def mousePressEvent(self, e):
+        if e.button() == Qt.MouseButton.LeftButton:
+            self.clicked.emit()
+
+
 class TranscriptCard(Card):
     def __init__(self, store, win):
         super().__init__(t("transcript"), add_tip=t("add_transcript"))
@@ -385,31 +409,82 @@ class TranscriptCard(Card):
         if not tr:
             self.empty(t("no_transcript"))
             return
-        for term, rows in grades.by_term(tr):
-            p, a = grades.totals(rows)
-            opened = term in self.open_terms
-            head = Row(grades.term_label(term), t("term_row", v=_g(grades.gpa(p, a)), a=fmt_num(a), n=len(rows)),
-                       icon="chevron_right" if not opened else "arrow_down")
+        # sınıf × dönem ızgarası: sütun = sınıf (2-6 yıl), satır = dönem (2 ya da 3); tıkla = dersleri aç
+        groups = grades.by_term(tr)
+        cells, other = {}, []
+        for term, rows in groups:
+            k = grades.term_key(term)
+            (other.append((term, rows)) if k == (99, 99) else cells.__setitem__(k, (term, rows)))
+        if cells:
+            years = max(y for y, _ in cells)
+            terms = max(2, max(n for _, n in cells))
+            grid = QWidget()
+            g = QGridLayout(grid)
+            g.setContentsMargins(0, 4, 0, 4)
+            g.setHorizontalSpacing(10)
+            g.setVerticalSpacing(10)
+            for y in range(1, years + 1):
+                h = QLabel(t("term_grid_year", n=y))
+                h.setObjectName("FieldLabel")
+                g.addWidget(h, 0, y - 1)
+                g.setColumnStretch(y - 1, 1)
+                for n in range(1, terms + 1):
+                    if (y, n) in cells:
+                        term, rows = cells[(y, n)]
+                        g.addWidget(self._term_tile(term, rows, n), n, y - 1)
+            self.add(grid)
+        for term, rows in other:
+            head = Row(grades.term_label(term), self._term_line(rows), icon="chevron_right")
             head.clicked.connect(lambda term=term: self._toggle(term))
             self.add(head)
-            if not opened:
-                continue
-            box = QWidget()
-            v = QVBoxLayout(box)
-            v.setContentsMargins(28, 0, 0, 6)
-            v.setSpacing(0)
-            for e in rows:
-                letter = (e.get("letter") or "XX").upper()
-                badges = [(letter, grades.letter_kind(letter))]
-                if e.get("target") and grades.point(e["target"]) is not None:
-                    badges.insert(0, ("→ " + e["target"], None))
-                sub = " · ".join(x for x in (e.get("code"), f"{fmt_num(num(e.get('credits')))} AKTS",
-                                             e.get("lang"),
-                                             f"{t('col_old')} {e['old_letter']}" if e.get("old_letter") else "") if x)
-                r = Row(e.get("name") or "—", sub, badges=badges)
-                bind_row(self.win, r, "transcript", e)
-                v.addWidget(r)
-            self.add(box)
+        for term, rows in groups:
+            if term in self.open_terms:
+                self._term_list(term, rows)
+
+    def _term_line(self, rows):
+        p, a = grades.totals(rows)
+        return t("term_row", v=_g(grades.gpa(p, a)), a=fmt_num(a), n=len(rows))
+
+    def _term_tile(self, term, rows, n):
+        """Bir dönem kutusu: "1. dönem", ANO büyük, AKTS · ders; açık olan vurgulu."""
+        p, a = grades.totals(rows)
+        w = _TermTile(term in self.open_terms)
+        v = QVBoxLayout(w)
+        v.setContentsMargins(12, 8, 12, 10)
+        v.setSpacing(0)
+        lbl = QLabel(t("term_grid_term", n=n))
+        lbl.setObjectName("StatLabel")
+        val = QLabel(_g(grades.gpa(p, a)))
+        val.setObjectName("StatValue")
+        note = QLabel(f"{fmt_num(a)} AKTS · {t('n_courses_short', n=len(rows))}")
+        note.setObjectName("StatLabel")
+        for x in (lbl, val, note):
+            v.addWidget(x)
+        w.setToolTip(grades.term_label(term, is_tr()))
+        w.clicked.connect(lambda term=term: self._toggle(term))
+        return w
+
+    def _term_list(self, term, rows):
+        lbl = sub_label(grades.term_label(term, is_tr()) + " · " + self._term_line(rows))
+        lbl.setObjectName("FieldLabel")
+        lbl.setContentsMargins(4, 10, 0, 2)
+        self.add(lbl)
+        box = QWidget()
+        v = QVBoxLayout(box)
+        v.setContentsMargins(0, 0, 0, 6)
+        v.setSpacing(0)
+        for e in rows:
+            letter = (e.get("letter") or "XX").upper()
+            badges = [(letter, grades.letter_kind(letter))]
+            if e.get("target") and grades.point(e["target"]) is not None:
+                badges.insert(0, ("→ " + e["target"], None))
+            sub = " · ".join(x for x in (e.get("code"), f"{fmt_num(num(e.get('credits')))} AKTS",
+                                         e.get("lang"),
+                                         f"{t('col_old')} {e['old_letter']}" if e.get("old_letter") else "") if x)
+            r = Row(e.get("name") or "—", sub, badges=badges)
+            bind_row(self.win, r, "transcript", e)
+            v.addWidget(r)
+        self.add(box)
 
     def _toggle(self, term):
         self.open_terms ^= {term}

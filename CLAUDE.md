@@ -121,10 +121,22 @@ alphaapp/
   pages/projects.py Projeler: projects (category work/education, start, due, logo, status) + task.project.
                   İlerleme store.project_progress (görev varsa biten oranı). Timeline (Gantt), Logo (harf yol olarak
                   çizilir: Segoe UI Variable kalını pixmap'te bozuk çıkıyor). İş / Eğitim sayfalarında project_row.
+  Eğitim sayfası  pages/education.py sekmeleri (ChipBar, her açılışta ev): home = ev ikonu (karolar: çalışma kareleri
+                  dolu/toplam, AGNO / prefs agno_goal, sıradaki sınav; Yaklaşan sınavlar = puansız tüm sınav / quiz /
+                  sunum ISO haftalara bölünmüş, tarihsizler sonda; Derslerim = ders satırı + ExamBar; görevler,
+                  projeler), courses = Dersler (solda liste, sağda seçili dersin kartı; show_course(cid) oraya geçer),
+                  grades = Notlar (GradesCard + TranscriptCard). Ayrı Takvim sekmesi ve "hedefin altında" kutusu
+                  kullanıcı istemedi (kaldırıldı). Ders ikonu addan: education.course_icon (COURSE_ICONS: ısı / akış
+                  → ateş, temel bilimler → mikroskop, mekanik / tasarım → dişli, yoksa kitap). Sınav çalışma kareleri pages/edu_study.py: exams.study =
+                  [{t konu, n kare, d dolu}] — her konu bir satır, uzunluk serbest (Excel tablo seçici gibi: soluk
+                  kareye tıkla = uzat, alttaki soluk satır = yeni konu, sağ tık adlandır / kısalt / sil). Sabit 4×3
+                  ızgara ve sayı kutusu kullanıcı istemedi. Eski study_goal/study_done rows_of() ile satırlara bölünür.
+                  Her sınavda (geçmiş / puanlı dahil) gösterilir. Transkript = sınıf × dönem ızgarası (_TermTile,
+                  yıl 2-6, dönem 2-3 olabilir), tıkla = altta o dönemin dersleri.
   not kartı      grades_view.GradesCard: ExamBar (sınav ağırlığı kadar parça, not dolumu), kalem = sınav çipleri, ⋮ = Dönemi
                   bitir, Hedef AGNO sabit (prefs agno_goal). Sınav türleri grades.EXAM_KINDS (kayıtta Türkçe ad, ekranda
                   dile göre; "Midterm 2" → "Vize 2"). store.add_exam aynı ders + türdeki boş sınavı doldurur (yenisini açmaz).
-  grades.py       ANO / AGNO = kullanıcının Excel'i (lectures_for_alpha.xlsx, .gitignore'da). Harf → puan grades.points()
+  grades.py       ANO / AGNO = kullanıcının Excel'i (assets/lectures_for_alpha.xlsx, .gitignore'da; kök assets/ = kişisel kaynaklar: CV PDF, Excel, muscle-body, hepsi gitignore, pakete girmez). Harf → puan grades.points()
                   (varsayılan YÖK, prefs grade_points farklılar; Seçenekler > Genel > Not sistemi). transcript koleksiyonu,
                   dersler letter / guess / target / retake. Excel'in "*ad*" eşleşmesi yerine tam ad → kod → en kısa
                   içeren. read_transcript_xlsx openpyxl'siz (zip+XML), "AGNO" satırında durur. Sonuçlar Excel'le
@@ -143,10 +155,18 @@ alphaapp/
                   Kütüphane / harita / bucket telefon sayfasına GİTMEZ (smoke denetler).
   sürükle-bırak   Row.drag_data "coll:id" + Card.accept_drop(colls, fn) (components.DRAG_MIME): görev → Yaklaşan
                   sınavlar / ders kartı (sınav), proje kartı (projeye ata).
+  Beden sayfası   eski adı Spor (anahtar hâlâ "sport", nav_sport = "Beden"; görev kategorisi cat_sport "Spor" kalır).
+                  Üç sekme (ChipBar, her açılışta ev): home = ev ikonu (Vücudum kilo/yağ, Gelişimim, HeroCard,
+                  BodyCard), train = Antrenmanlar (hafta + son haftalar, kutular, rekorlar, günlük, programlar),
+                  food = Beslenme (halkalar, öğünler, besin kütüphanesi). Kart eklerken tab_widgets'a koy; üst
+                  düğmeler tab_actions'ta. scroll_to kartın sekmesine geçer.
   spor (ağırlık)  fitness.py: hareket kataloğu (EXERCISES → ana/yardımcı kaslar, _GUESS ile addan tahmin), e1RM
                   (Epley), kas yükü (fitness.weights_of: ana 1, yardımcı 0.5; ACTIVATION'daki 17 hareket kullanıcının
                   uygulamasının kas haritasından: çok yüksek 1 / yüksek .75 / sinerjist .5 / biraz .35 / düşük .2),
-                  rekorlar. workouts.exercises [{name, sets [{r, w}]}],
+                  rekorlar. 2026-11: kullanıcının uygulamasındaki eksikler eklendi (adlar İngilizce, uygulamadaki
+                  gibi; renk → ağırlık lejantı ACTIVATION başında). fitness.ALIASES + canonical(): uygulama adı →
+                  katalog adı (Barbell Squat → Squat, Face Pull → Cable Face Pull), listede tek görünür.
+                  workouts.exercises [{name, sets [{r, w}]}],
                   templates (program: name, exercises [{name, sets, reps, rir}]), body (kilo/ölçü) + prefs goal_weight.
                   pages/sport_ui.py: WorkoutDialog (programdan başlat → geçen seferki kilolar dolu), TemplateDialog,
                   LineChart, Templates/Records/Body kartları. lifts = tek başına girilen rekor (PR), history() okur.
@@ -160,7 +180,7 @@ alphaapp/
                   Hypertrophy (Boostcamp 1. hafta), 5×5, 3×5, Full Body ABC / ABAB; günler _week() ile haftalığa
                   toplanır, split metni altta). body3d.py: ModelView = önceden çizilmiş 72 kare (assets/body_frames.zip,
                   piksel = 1 + kas×13 + gölge, boyama = renk tablosu, sürükle = döndür); paket yoksa Body3D
-                  (elipsoidlerden basit model, CI'da bu). Paket packaging/make_body.py ile muscle-body/ OBJ'sinden
+                  (elipsoidlerden basit model, CI'da bu). Paket packaging/make_body.py ile assets/muscle-body/anatomy.OBJ'den
                   üretilir (numpy + Pillow); model lisansı belirsiz → ikisi de .gitignore'da, depoya girmez.
                   Referans: spor/ klasöründeki "Lightweight" ekran görüntüleri (yalnızca veri/fikir, görünüm alpha'nın).
   pages/          today, schedule, habits, education, work, sport, mind, social, finance, notes

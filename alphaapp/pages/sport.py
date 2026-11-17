@@ -1,4 +1,6 @@
-"""Spor: haftalık hedef (haftada kaç gün), bu hafta, son haftalar, ne çalıştım, antrenman günlüğü."""
+"""Beden (eski adı Spor; anahtar hâlâ "sport"): üç sekme — ev (kilo / yağ / vücut gelişimi; sayfa
+burada açılır), Antrenmanlar ve Beslenme.
+Antrenmanlar: haftalık hedef (haftada kaç gün), bu hafta, son haftalar, ne çalıştım, antrenman günlüğü."""
 from collections import Counter
 from datetime import timedelta
 
@@ -8,8 +10,9 @@ from PyQt6.QtWidgets import (QHBoxLayout, QVBoxLayout, QLabel, QWidget, QSpinBox
 
 from ..config import day_today
 from ..components import (button, sub_label, Page, Card, Row, StatTile, TileGrid, BarChart, HBars, WeekStrip, Ring,
-                          FlowLayout)
+                          FlowLayout, ChipBar)
 from ..widgets import IconButton
+from ..theme import theme
 from ..pickers import DateButton
 from ..config import prefs
 from ..forms import edit_item, bind_row, item_menu
@@ -24,8 +27,23 @@ from .sport_top import BodyStatsCard, DevPreviewCard
 class SportPage(Page):
     def __init__(self, store, win):
         super().__init__(store, win, t("nav_sport"), t("sport_sub"))
-        self.action(t("add_routine"), lambda: edit_item(win, "routine", preset={"category": "sport"}))
-        self.action(t("add_workout"), lambda: open_workout(win), primary=True, icon="add")
+        # üst düğmeler sekmeye göre: Antrenmanlar → programa / antrenman ekle, Beslenme → besin / öğün ekle
+        self.tab_actions = {
+            "home": [],
+            "train": [self.action(t("add_routine"), lambda: edit_item(win, "routine", preset={"category": "sport"})),
+                      self.action(t("add_workout"), lambda: open_workout(win), primary=True, icon="add")],
+            "food": [self.action(t("new_foods"), lambda: edit_item(win, "foods")),
+                     self.action(t("add_meal"), lambda: edit_item(win, "meals"), primary=True, icon="add")],
+        }
+
+        # sekmeler: ev (ikon) / Antrenmanlar / Beslenme; uygulama her açılışta evden başlar
+        self.tabs = ChipBar([("home", ""), ("train", t("tab_train")), ("food", t("tab_food"))], "home")
+        home_btn = self.tabs.btns["home"]
+        theme.icon(home_btn, "home", "text", 18)
+        home_btn.setToolTip(t("tab_body_home"))
+        self.tabs.changed.connect(self._tab)
+        self.add(self.tabs)
+        self.tab_widgets = {"home": [], "train": [], "food": []}
 
         # giriş: döndürülebilir vücut, kaslar gelişime / programa göre kızarır
         # en üst: Vücudum (kilo / yağ grafiği) + Gelişimim (yakın plan model); tıkla → aşağıdaki ayrıntı
@@ -37,17 +55,17 @@ class SportPage(Page):
         lc.setContentsMargins(0, 0, 0, 0)
         lc.setSpacing(16)
         lc.addWidget(self.c_stats)
-        self.row(self.left_col, self.c_dev, stretches=[1, 1])
+        self.tab_widgets["home"].append(self.row(self.left_col, self.c_dev, stretches=[1, 1]))
         self.c_stats.opened.connect(lambda: self.scroll_to(self.c_body))
         self.c_dev.opened.connect(self._open_dev)
         self.c_hero = HeroCard(win)
-        self.add(self.c_hero)
+        self.tab_widgets["home"].append(self.add(self.c_hero))
 
         self.t_week = StatTile(t("this_week"))
         self.t_month = StatTile(t("this_month"))
         self.t_minutes = StatTile(t("minutes_month"))
         self.t_streak = StatTile(t("streak"))
-        self.add(TileGrid([self.t_week, self.t_month, self.t_minutes, self.t_streak]))
+        self.tab_widgets["train"].append(self.add(TileGrid([self.t_week, self.t_month, self.t_minutes, self.t_streak])))
 
         # bu hafta + hedef
         self.c_week = Card(t("this_week"))
@@ -86,14 +104,15 @@ class SportPage(Page):
         self.c_chart = Card(t("last_weeks"))
         self.chart = BarChart(roles=("text",), names=(t("days"),), fmt=lambda v: str(int(v)), height=150, max_value=7)
         self.c_chart.layout().addWidget(self.chart)
-        lc.addWidget(self.c_week)
-        self.add(self.c_chart)
+        # Antrenmanlar: bu hafta + son haftalar yan yana, en üstte
+        self.tab_widgets["train"].insert(0, self.row(self.c_week, self.c_chart, stretches=[1, 1]))
 
         # ağırlık antrenmanı: rekorlar + vücut (programlar günlüğün yanında)
         self.c_tpl = TemplatesCard(win)
         self.c_pr = RecordsCard(win)
         self.c_body = BodyCard(win)
-        self.row(self.c_pr, self.c_body)
+        self.tab_widgets["home"].append(self.add(self.c_body))
+        self.tab_widgets["train"].append(self.add(self.c_pr))
 
         # beslenme: bugünkü kalori / makrolar + öğünler
         self.c_food = Card(t("nutrition"))
@@ -112,7 +131,7 @@ class SportPage(Page):
         self.c_foods.add_clicked.connect(lambda: edit_item(win, "foods"))
         mv.addWidget(self.c_foods)
         mv.addStretch(1)
-        self.row(self.c_food, meals_col)
+        self.tab_widgets["food"].append(self.row(self.c_food, meals_col))
 
         self.c_log = Card(t("workout_log"), add_tip=t("add_workout"))
         self.c_log.add_clicked.connect(lambda: open_workout(win))
@@ -129,7 +148,25 @@ class SportPage(Page):
         rv.addWidget(self.c_focus)
         rv.addWidget(self.c_plan)
         rv.addStretch(1)
-        self.row(self.c_log, right_col, stretches=[3, 2])
+        self.tab_widgets["train"].append(self.row(self.c_log, right_col, stretches=[3, 2]))
+        self._tab(self.tabs.current, save=False)
+
+    def _tab(self, key, save=True):
+        """Sekme değiştir: yalnızca o sekmenin kartları görünür, sayfa başa döner."""
+        key = key if key in self.tab_widgets else "home"
+        if self.tabs.current != key:
+            self.tabs.select(key, emit=False)
+        # seçili çip açık zemin: ev ikonu koyu olsun, değilse metin rengi
+        theme.icon(self.tabs.btns["home"], "home", "button_fg" if key == "home" else "text", 18)
+        for k, ws in self.tab_widgets.items():
+            for w in ws + self.tab_actions[k]:
+                w.setVisible(k == key)
+        # evde iki düğme de görünsün (antrenman + öğün ekle)
+        if key == "home":
+            for b in (self.tab_actions["train"][1], self.tab_actions["food"][1]):
+                b.setVisible(True)
+        if save:
+            self.verticalScrollBar().setValue(0)
 
     def _log_food(self, f):
         from PyQt6.QtWidgets import QInputDialog
@@ -334,7 +371,12 @@ class SportPage(Page):
         self.win.pages["today"].mark_dirty()
 
     def scroll_to(self, w):
-        """Ayrıntı kartını sayfanın üstüne getirir."""
+        """Ayrıntı kartını sayfanın üstüne getirir (başka sekmedeyse önce o sekmeye geçer)."""
+        for k, ws in self.tab_widgets.items():
+            if any(x is w or x.isAncestorOf(w) for x in ws):
+                if self.tabs.current != k:
+                    self._tab(k)
+                break
         y = w.mapTo(self.content, w.rect().topLeft()).y()
         self.verticalScrollBar().setValue(max(0, y - 12))
 

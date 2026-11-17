@@ -277,6 +277,10 @@ QPushButton#NavItem:checked:hover {{ background: {c['surface_hover']}; }}
 #CardSub {{ font-size: 12px; color: {c['text2']}; }}
 #Row {{ background: transparent; border-radius: 8px; }}
 #Row:hover {{ background: {c['hover']}; }}
+#Row[sel="true"] {{ background: {c['hover']}; }}
+#TermTile {{ background: {c['track']}; border-radius: 10px; border: 1px solid transparent; }}
+#TermTile:hover {{ background: {c['hover']}; }}
+#TermTile[open="true"] {{ background: {c['hover']}; border: 1px solid {c['text3']}; }}
 #RowTitle {{ font-size: 13px; color: {c['text']}; }}
 #RowTitleDone {{ font-size: 13px; color: {c['text3']}; text-decoration: line-through; }}
 #RowSub {{ font-size: 12px; color: {c['text2']}; }}

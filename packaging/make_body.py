@@ -24,7 +24,10 @@ import numpy as np
 from PIL import Image
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-SRC = os.path.join(ROOT, "muscle-body", "source", "zremesh anatomy muhammet.zip")
+# model (lisansı belirsiz, depoya girmez): önce assets/muscle-body/anatomy.OBJ, yoksa eski yer
+SRC = next((p for p in (os.path.join(ROOT, "assets", "muscle-body", "anatomy.OBJ"),
+                        os.path.join(ROOT, "muscle-body", "source", "zremesh anatomy muhammet.zip"))
+            if os.path.exists(p)), os.path.join(ROOT, "assets", "muscle-body", "anatomy.OBJ"))
 OUT = os.path.join(ROOT, "alphaapp", "assets", "body_frames.zip")
 
 KEYS = ["skin", "chest", "front_delts", "side_delts", "rear_delts", "biceps", "triceps", "forearms", "abs",

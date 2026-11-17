@@ -173,8 +173,10 @@ def _squares(ctx):
     win.show_page("education")
     _pump(app)
     course = [c for c in store.all("courses") if c["name"] == "Akışkanlar Mekaniği"][0]
+    win.pages["education"].show_course(course["id"])      # Dersler sekmesi: seçili dersin kartı
+    _pump(app)
     egrids = [g for g in win.pages["education"].findChildren(DayGrid) if g.isVisible()]
-    assert len(egrids) == len(store.all("courses")), len(egrids)
+    assert len(egrids) == 1, len(egrids)
     assert td.isoformat() not in course.get("study_days", [])
     store.toggle_day("courses", course["id"], td, "study_days")
     _pump(app)

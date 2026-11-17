@@ -256,6 +256,8 @@ def _parse_num(s):
     s = (s or "").strip().replace(" ", "")
     if not s:
         return None
+    if s.casefold() in ("na", "n/a", "gr", "girmedi", "girmedim"):   # sınava girmedi → 0 kabul
+        return 0.0
     # 12.345,67 → 12345.67 · 12,5 → 12.5 · 12.5 → 12.5
     if "," in s:
         s = s.replace(".", "").replace(",", ".")
