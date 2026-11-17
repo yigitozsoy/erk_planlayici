@@ -538,25 +538,32 @@ def _squares(ctx):
     assert streaks({D(0), D(5), D(6), D(7)}, td) == (1, 3)
     assert streaks(set(), td) == (0, 0)
 
-    # ders: kareye tıkla → çalışma günü eklenir / kalkar (kareler Alışkanlıklar'da, alışkanlıkların altında)
-    win.show_page("habits")
+    # ders: kareler Eğitim'deki ders kartında (son 2 ay + önümüzdeki 1 ay), tıkla = o gün çalıştım
+    win.show_page("education")
     _pump(app)
     course = [c for c in store.all("courses") if c["name"] == "Akışkanlar Mekaniği"][0]
-    assert not win.pages["education"].findChildren(DayGrid)
-    n_hab = len(store.all("habits"))
-    grids = [g for g in win.pages["habits"].findChildren(DayGrid) if g.isVisible()]
-    assert len(grids) == n_hab + len(store.all("courses")), len(grids)
+    egrids = [g for g in win.pages["education"].findChildren(DayGrid) if g.isVisible()]
+    assert len(egrids) == len(store.all("courses")), len(egrids)
     assert td.isoformat() not in course.get("study_days", [])
     store.toggle_day("courses", course["id"], td, "study_days")
     _pump(app)
     assert td.isoformat() in store.get("courses", course["id"])["study_days"]
-    cards = [c for c in win.pages["habits"].cards_host.findChildren(type(win.pages["habits"].c_today))
+    from alphaapp.components import Card
+    cards = [c for c in win.pages["education"].findChildren(Card)
              if getattr(c, "grid", None) is not None and c.title_lbl.text() == "Akışkanlar Mekaniği" and c.isVisible()]
     g = cards[0].grid
-    assert g.weeks() >= 10, g.weeks()
+    from datetime import timedelta as _td
+    assert g.span == (2, 1) and 13 <= g.weeks() <= 15, g.weeks()
+    f0 = g.first_day()
+    last = f0 + _td(weeks=g.weeks()) - _td(days=1)
+    assert f0.weekday() == 0 and last.weekday() == 6 and 55 <= (td - f0).days <= 68 and 28 <= (last - td).days <= 37,         (f0, last)
+    assert 9 <= g.CELL <= 24, g.CELL            # kare, en fazla 24 px (kullanıcı büyüğünü istemedi)
     g.day_toggled.emit(td)   # geri al
     _pump(app)
     assert td.isoformat() not in store.get("courses", course["id"])["study_days"]
+    win.show_page("habits")
+    _pump(app)
+    assert len([g for g in win.pages["habits"].findChildren(DayGrid) if g.isVisible()]) == len(store.all("habits"))
 
     # alışkanlık: bugün listesinden işaretle
     win.show_page("habits")
@@ -569,7 +576,7 @@ def _squares(ctx):
     _pump(app)
     assert td.isoformat() in store.get("habits", kitap["id"])["days"]
     assert page.t_today.findChildren(type(page.title_lbl))  # kutu dolu
-    assert len([g for g in page.findChildren(DayGrid) if g.isVisible()]) == 2 + len(store.all("courses"))
+    assert len([g for g in page.findChildren(DayGrid) if g.isVisible()]) == len(store.all("habits"))
     if ctx["shots"]:
         _pump(app, 6)
         win.grab().save(os.path.join(ctx["shots"], "habits_after_check.png"))
@@ -678,8 +685,10 @@ def _v2(ctx):
     d.deleteLater()
     prefs.set("show_place", True)
     # alışkanlıklar programda: kutu çıkar, tıklayınca o gün işaretlenir
-    h = store.add("habits", {"name": "Gitar çal", "category": "personal", "goal": 7, "days": [],
+    h = store.add("habits", {"name": "Gitar çal", "category": "sport", "goal": 7, "days": [],
                              "weekdays": [td.weekday()]})
+    hp = store.add("habits", {"name": "GIZLI_KISISEL_ALISKANLIK", "category": "personal", "goal": 7})
+    prefs.set("habits_in_schedule", False)
     page.refresh()
     assert not [b for b in page.findChildren(Block) if "Gitar çal" in " ".join(
         lb.text() for lb in b.findChildren(QLabel))]
@@ -687,13 +696,130 @@ def _v2(ctx):
     page.refresh()
     hb = [b for b in page.findChildren(Block) if "Gitar çal" in " ".join(
         lb.text() for lb in b.findChildren(QLabel))]
-    assert len(hb) == 1, len(hb)
+    assert len(hb) == page.weeks, len(hb)        # günde tek alışkanlık kutusu (her haftada bir)
+    hb = hb[:1]                                  # ilk bulunan = bu haftanın kutusu
+    txt = " ".join(lb.text() for lb in hb[0].findChildren(QLabel))
+    assert "/" in txt, txt                       # spor alışkanlıkları tek kutuda
+    assert not [b for b in page.findChildren(Block) if "GIZLI_KISISEL" in " ".join(
+        lb.text() for lb in b.findChildren(QLabel))]   # programda yalnızca spor alışkanlıkları
+    store.delete("habits", hp["id"])
     hb[0].clicked.emit()
     _pump(app)
+    acts = [a for a in page.last_menu.actions() if a.text().endswith("Gitar çal")]
+    assert acts and not acts[0].isChecked()
+    acts[0].trigger()
+    page.last_menu.close()
+    _pump(app)
     assert td.isoformat() in store.get("habits", h["id"])["days"]
+    # saatli alışkanlık ayrı kutu
+    store.update("habits", h["id"], time="07:30")
+    page.refresh()
+    assert [b for b in page.findChildren(Block) if "07:30" in " ".join(
+        lb.text() for lb in b.findChildren(QLabel))]
+    store.update("habits", h["id"], time=None)
     d = FormDialog(win, store, "habits", store.get("habits", h["id"]))
     assert "weekdays" in d.fields and d.fields["weekdays"][1].value() == [td.weekday()]
     d.deleteLater()
+
+
+@step("alışkanlık kuralları: bırakma, yarım, haftalık en az / ideal, üst üste boş gün, ders çalışmadan otomatik")
+def _habit_rules(ctx):
+    import json
+    win, app, store = ctx["win"], ctx["app"], ctx["store"]
+    from alphaapp import habits_core as hc
+    from alphaapp.components import DayGrid
+    td = date.today()
+    D = lambda k: (td - timedelta(days=k))  # noqa: E731
+    iso = lambda k: D(k).isoformat()  # noqa: E731
+    # spor: haftada en az 3.5, ideal 4, 3 gün üst üste boş → bozulur
+    mon = td - timedelta(days=td.weekday())
+    w0 = mon - timedelta(days=14)                # iki hafta önceki pazartesi
+    days = [w0 + timedelta(days=i) for i in (0, 2, 4)]
+    half = [w0 + timedelta(days=6)]
+    days += [w0 + timedelta(days=7 + i) for i in (0, 2, 4, 5)]
+    gym = {"id": "x", "name": "Spor", "goal": 4, "week_min": 3.5, "gap": 3,
+           "days": [d.isoformat() for d in days], "half": [d.isoformat() for d in half]}
+    info = hc.streak_info(gym, mon + timedelta(days=1))
+    # 3 + yarım = 3.5 geçer; geçen hafta 4 → seri sürüyor (pazartesi + salı boş, 2 gün < 3)
+    assert info["start"] == w0, info
+    gym2 = dict(gym, half=[])                    # ilk hafta 3 < 3.5 → pazartesi bozulur
+    assert hc.streak_info(gym2, mon + timedelta(days=1))["start"] == w0 + timedelta(days=7)
+    # 3 gün üst üste boş → bozulur
+    g3 = {"id": "y", "gap": 3, "days": [iso(10), iso(9), iso(7), iso(6)]}
+    i3 = hc.streak_info(g3, td)
+    assert i3["start"] is None and i3["cur"] == 0 and i3["best"] == 5, i3   # 10..6 (1 boş gün geçer), sonra 5 gün boş
+    assert len(i3["ranges"]) == 1
+    # her gün, bugün işaretsiz → dünden say
+    dly = {"id": "z", "days": [iso(k) for k in range(1, 6)]}
+    assert hc.streak_info(dly, td)["cur"] == 5
+    # bırakma: kayma seriyi sıfırlar, en uzun kalır
+    nf = {"id": "q", "kind": "quit", "start": iso(10), "slips": [iso(4)]}
+    i = hc.streak_info(nf, td)
+    assert i["cur"] == 4 and i["best"] == 6, i
+    assert hc.state(nf, D(4)) == 0 and hc.state(nf, td) == 1 and hc.state(nf, D(20)) is None
+    # ders çalışmadan otomatik: oturumlar ≥ 3 sa tam, ≥ 1.5 sa yarım
+    store.add("sessions", {"kind": "study", "date": iso(1), "minutes": 190})
+    store.add("sessions", {"kind": "study", "date": iso(2), "minutes": 100})
+    st = hc.from_template(store, [tp for tp in hc.TEMPLATES if tp["key"] == "study"][0], td)
+    st = store.get("habits", st["id"])
+    assert st["source"] == "study" and hc.state(st, D(1), store) == 1 and hc.state(st, D(2), store) == 0.5
+    # tıklama döngüsü: yap boş → tam → yarım → boş · bırak temiz → kayma → yarım → temiz
+    b = store.add("habits", {"name": "Dene", "days": []})
+    seq = []
+    for _ in range(3):
+        seq.append(hc.cycle(store, store.get("habits", b["id"]), td))
+    assert seq == [1, 0.5, 0], seq
+    q = hc.from_template(store, [tp for tp in hc.TEMPLATES if tp["key"] == "nofap"][0], D(3))
+    seq = [hc.cycle(store, store.get("habits", q["id"]), td) for _ in range(3)]
+    assert seq == [0, 0.5, 1], seq
+    hc.set_today(store, store.get("habits", q["id"]), td, False)
+    assert hc.state(store.get("habits", q["id"]), td) == 0
+    assert hc.streak_info(store.get("habits", q["id"]), td)["cur"] == 0     # bugün kaydı → seri sıfır
+    # sayfa: hazır alışkanlık çipleri, bırakmada kayma düğmesi, kareler
+    win.show_page("habits")
+    _pump(app)
+    page = win.pages["habits"]
+    page.refresh()
+    _pump(app)
+    from PyQt6.QtWidgets import QPushButton
+    names = [w.text() for w in page.sug_host.findChildren(QPushButton)]
+    assert not any("NoFap" in n for n in names) and not any("ders çalışma" in n for n in names), names
+    assert any("Spora git" in n for n in names), names
+    nf_cards = [c for c in page.cards_host.findChildren(type(page.c_today)) if c.title_lbl.text() == "NoFap"]
+    assert nf_cards and nf_cards[0].today_btn.isChecked()        # bugün kaydı
+    assert nf_cards[0].grid.value(td) == 0
+    assert len([g for g in page.findChildren(DayGrid) if g.isVisible()]) == len(store.all("habits"))
+    if ctx["shots"]:
+        _pump(app, 6)
+        win.grab().save(os.path.join(ctx["shots"], "habits_rules.png"))
+        page.cards_host.grab().save(os.path.join(ctx["shots"], "habits_cards.png"))
+    # antrenman → "Spora git" kendiliğinden işaretlenir, Spor sayfası serisi alışkanlık kuralıyla
+    gym = hc.from_template(store, [tp for tp in hc.TEMPLATES if tp["key"] == "gym"][0], td)
+    w = store.add("workouts", {"date": td.isoformat(), "kind": "Gym", "minutes": 60})
+    assert hc.state(store.get("habits", gym["id"]), td, store) == 1
+    win.show_page("sport")
+    _pump(app)
+    sp = win.pages["sport"]
+    sp.refresh()
+    assert sp.t_streak.lbl.text() == "Spor serisi" and int(sp.t_streak.val.text()) >= 1, sp.t_streak.val.text()
+    store.delete("workouts", w["id"])
+    store.delete("habits", gym["id"])
+    sp.refresh()
+    assert sp.t_streak.lbl.text() != "Spor serisi"
+    # Bugün sayfasında alışkanlık kartı: işaretle
+    win.show_page("today")
+    _pump(app)
+    tp_ = win.pages["today"]
+    from alphaapp.components import Row as _Row
+    rows = [r for r in tp_.c_habits.findChildren(_Row) if r.title_lbl.text() == "Dene"]
+    assert rows and tp_.c_habits.isVisible()
+    rows[0]._toggle()
+    _pump(app)
+    assert (hc.state(store.get("habits", b["id"]), td) or 0) >= 1
+    # web anlık görüntüsüne bırakma alışkanlığı gitmez
+    from alphaapp import web
+    snap = json.dumps(web.build_snapshot(store), ensure_ascii=False)
+    assert "NoFap" not in snap
 
 
 @step("veri taşıma: eski %LOCALAPPDATA%\\alpha\\data.json bir kez Belgeler\\alpha'ya kopyalanır")
@@ -1691,7 +1817,14 @@ def _fitness(ctx):
     hero._pick("pop", "sl5")
     _pump(app)
     assert hero.model.heat["quads"] > 0.7, hero.model.heat
-    assert len(fitness.POPULAR) == 10
+    assert len(fitness.POPULAR) == 8 and fitness.POPULAR[0]["key"] == "mine"
+    mine = {e["name"]: e["sets"] for e in fitness.POPULAR[0]["exercises"]}
+    assert sum(mine.values()) == 18 + 18 + 13 + 24 and mine["Dumbbell Lateral Raise"] == 6, mine
+    assert sum(e["sets"] for e in next(p for p in fitness.POPULAR if p["key"] == "guray")["exercises"]) == 115
+    # ekran görüntülerindeki kas haritası: ağırlıklı yük
+    assert fitness.muscles_of("Leg Press")[0] == ("quads", "adductors")
+    assert fitness.weights_of("Seated Calf Raise") == {"calves": 0.75}
+    assert fitness.muscles_of("Cable Face Pull")[0][0] == "rear_delts"
     hero._set_mode("dev")
     _pump(app)
     # model: kas seçimi ve dönüş
@@ -1959,6 +2092,377 @@ def _games(ctx):
     win.pages["library"].refresh()
     _pump(app, 4)
     store.delete("media", g["id"])
+
+
+@step("tarih / saat seçici: takvimden gün, Bugün / Yarın, saat + dakika ızgarası, yazarak, tekerlek adımı")
+def _pickers(ctx):
+    win, app, store = ctx["win"], ctx["app"], ctx["store"]
+    from datetime import timedelta
+    from PyQt6.QtWidgets import QPushButton, QLineEdit
+    from alphaapp.config import day_today
+    from alphaapp.components import MonthCalendar
+    from alphaapp.forms import FormDialog, OptDate, OptTime
+    from alphaapp.pickers import DateButton, TimeButton
+    from PyQt6 import sip
+
+    def gone(w):
+        return sip.isdeleted(w) or not w.isVisible()
+    td = day_today()
+    d = FormDialog(win, store, "tasks", None)
+    d.show()
+    _pump(app)
+    od = next(w for k, (kind, w) in d.fields.items() if k == "due")
+    ot = next(w for k, (kind, w) in d.fields.items() if k == "time")
+    assert isinstance(od, OptDate) and isinstance(od.ed, DateButton) and isinstance(ot, OptTime)
+    od.sw.setChecked(False)
+    assert od.value() is None and od.ed.isEnabled() and od.ed.property("off")
+    od.ed.click()
+    _pump(app)
+    pop = od.ed.popup
+    assert pop.isVisible()
+    pop.findChildren(MonthCalendar)[0].day_clicked.emit(td + timedelta(days=3))
+    _pump(app)
+    assert od.value() == (td + timedelta(days=3)).isoformat() and gone(pop)
+    od.ed.click()
+    _pump(app)
+    tomorrow = [b for b in od.ed.popup.findChildren(QPushButton) if b.text() in ("Yarın", "Tomorrow")][0]
+    tomorrow.click()
+    _pump(app)
+    assert od.value() == (td + timedelta(days=1)).isoformat()
+    od.ed.step(-1)
+    assert od.value() == td.isoformat()
+    # yıl: başlık → aylar → yıllar, 12'şer geri, 1998 → Mart → 14
+    from datetime import date as _date
+    od.ed.click()
+    _pump(app)
+    pop = od.ed.popup
+    title = [b for b in pop.findChildren(QPushButton) if b.objectName() == "PickTitle"][0]
+    title.click()
+    assert pop.st["mode"] == "months"
+    title.click()
+    assert pop.st["mode"] == "years"
+    from alphaapp.widgets import IconButton
+    prev = [b for b in pop.findChildren(IconButton) if b.toolTip() in ("Geri", "Back")][0]
+    while pop.st["y0"] > 1998:
+        prev.click()
+    if ctx["shots"]:
+        _pump(app, 4)
+        pop.grab().save(os.path.join(ctx["shots"], "picker_years.png"))
+    [b for b in pop.findChildren(QPushButton) if b.text() == "1998"][0].click()
+    assert pop.st["mode"] == "months" and pop.st["y"] == 1998
+    [b for b in pop.findChildren(QPushButton) if b.text() in ("Mart", "March")][0].click()
+    assert pop.st["mode"] == "days" and (pop.st["y"], pop.st["m"]) == (1998, 3)
+    pop.findChildren(MonthCalendar)[0].day_clicked.emit(_date(1998, 3, 14))
+    _pump(app)
+    assert od.value() == "1998-03-14" and gone(pop)
+    # yazarak
+    od.ed.click()
+    _pump(app)
+    pop = od.ed.popup
+    e = pop.findChildren(QLineEdit)[0]
+    e.setText("5.1.2027")
+    e.returnPressed.emit()
+    _pump(app)
+    assert od.value() == "2027-01-05" and gone(pop)
+    assert DateButton.parse("31.02.2026") is None and DateButton.parse("17/11/26") == _date(2026, 11, 17)
+    assert DateButton.parse("2026-11-17") == _date(2026, 11, 17) and DateButton.parse("abc") is None
+    # saat: önce kapalı; saat seçince anahtar açılır
+    assert ot.value() is None
+    ot.ed.setEnabled(True)
+    ot.ed.click()
+    _pump(app)
+    pop = ot.ed.popup
+    if ctx["shots"]:
+        _pump(app, 4)
+        pop.grab().save(os.path.join(ctx["shots"], "picker_time.png"))
+    [b for b in pop.findChildren(QPushButton) if b.text() == "14"][0].click()
+    [b for b in pop.findChildren(QPushButton) if b.text() == ":35"][0].click()
+    _pump(app)
+    assert ot.value() == "14:35" and gone(pop), ot.value()
+    ot.ed.click()
+    _pump(app)
+    ed = ot.ed.popup.findChildren(QLineEdit)[0]
+    ed.setText("0830")
+    ed.returnPressed.emit()
+    _pump(app)
+    assert ot.value() == "08:30", ot.value()
+    ot.ed.step(1)
+    assert ot.value() == "08:45"
+    ot.ed.set_value("08:50")
+    ot.ed.step(-1)
+    assert ot.value() == "08:45"
+    ot.ed.set_value("23:50")
+    ot.ed.step(1)
+    assert ot.value() == "00:00"
+    assert TimeButton._parse("9.30") == (9, 30) and TimeButton._parse("abc") is None and TimeButton._parse("9") == (9, 0) and TimeButton._parse("25:00") is None
+    if ctx["shots"]:
+        od.ed.click()
+        _pump(app, 4)
+        od.ed.popup.grab().save(os.path.join(ctx["shots"], "picker_date.png"))
+        od.ed.popup.close()
+    d.reject()
+    _pump(app)
+
+
+@step("hedefler > CV: şu anki + hayalimdeki yan yana, gerçekleşti, hedefe çevir, PDF, telefona gitmez")
+def _cv(ctx):
+    win, app, store = ctx["win"], ctx["app"], ctx["store"]
+    import json
+    import tempfile
+    from alphaapp import web
+    from alphaapp.pages import cv as cvmod
+    a = store.add("cv", {"side": "now", "section": "education", "title": "Makine Mühendisliği", "when": "2023 – "})
+    b = store.add("cv", {"side": "dream", "section": "experience", "title": "GIZLI_CV_STAJ", "org": "Baykar"})
+    c = store.add("cv", {"side": "dream", "section": "languages", "title": "Almanca", "detail": "B2"})
+    gp = win.pages["goals"]
+    gp.tabs.select("cv")
+    win.show_page("goals")
+    _pump(app)
+    gp.refresh()
+    _pump(app)
+    assert gp.cv.isVisible() and not gp.board_host.isVisible() and gp.tabs.isVisible()
+    titles = [lb.text() for lb in gp.cv.c_dream.findChildren(QLabel) if lb.isVisibleTo(gp.cv.c_dream)]
+    assert any("GIZLI_CV_STAJ" in x for x in titles), titles
+    # hayaldeki sayfada şu anki madde soluk görünür; aynı kurumla hayalde madde varsa gizlenir
+    assert "Makine Mühendisliği" in titles, titles
+    store.update("cv", a["id"], org="Gazi Üniversitesi")
+    d = store.add("cv", {"side": "dream", "section": "education", "title": "Makine Müh. (mezun)",
+                         "org": "Gazi Üniversitesi", "detail": "AGNO 3.00"})
+    gp.refresh()
+    _pump(app)
+    dt = [lb.text() for lb in gp.cv.c_dream.findChildren(QLabel) if lb.isVisibleTo(gp.cv.c_dream)]
+    nt = [lb.text() for lb in gp.cv.c_now.findChildren(QLabel) if lb.isVisibleTo(gp.cv.c_now)]
+    assert "Makine Mühendisliği" not in dt and "Makine Müh. (mezun)" in dt and "Makine Mühendisliği" in nt, dt
+    store.delete("cv", d["id"])
+    pr = store.add("cv", {"side": "now", "section": "profile", "title": "GIZLI_AD", "org": "Yaş 20"})
+    gp.refresh()
+    _pump(app)
+    dt = [lb.text() for lb in gp.cv.c_dream.findChildren(QLabel) if lb.isVisibleTo(gp.cv.c_dream)]
+    assert "GIZLI_AD" in dt     # hayalde üst bilgi yoksa şu ankinden
+    assert cvmod._year("2021 - Günümüz") == 9999 and cvmod._year("Haziran 2024 – Eylül 2024") == 2024
+    assert "0" in gp.cv.summary.text() and "2" in gp.cv.summary.text(), gp.cv.summary.text()
+    new = cvmod.realize(store, store.get("cv", b["id"]))
+    assert new["side"] == "now" and new["title"] == "GIZLI_CV_STAJ" and store.get("cv", b["id"])["done"]
+    assert cvmod.progress(store) == (1, 2)
+    g = cvmod.to_goal(store, store.get("cv", c["id"]))
+    assert store.get("goals", g["id"])["area"] == "education" and store.get("cv", c["id"])["goal"] == g["id"]
+    f = os.path.join(tempfile.mkdtemp(), "ozgecmis.pdf")
+    open(f, "wb").write(b"%PDF-1.4 test")
+    cvmod.attach_pdf(f)
+    assert cvmod.pdf_path() and cvmod.pdf_path().startswith(cvmod.CV_DIR)
+    gp.refresh()
+    _pump(app)
+    assert gp.cv.b_pdf.isVisibleTo(gp.cv.c_now)
+    assert "GIZLI_CV_STAJ" not in json.dumps(web.build_snapshot(store), ensure_ascii=False)
+    if ctx["shots"]:
+        win.resize(1280, 900)
+        _pump(app, 6)
+        win.grab().save(os.path.join(ctx["shots"], "goals_cv.png"))
+    for x in (a, b, c, new, pr):
+        store.delete("cv", x["id"])
+    store.delete("goals", g["id"])
+    gp.tabs.select("board")
+
+
+@step("hayat > harita (il / ülke / şehir işaretle, türetilmiş renk) + bucket list panosu; telefona gitmez")
+def _places_bucket(ctx):
+    import json
+    from PyQt6.QtCore import QPoint, QPointF
+    from alphaapp.components import Row
+    from alphaapp.i18n import t
+    from alphaapp import web
+    from alphaapp.pages import places as pl
+    from alphaapp.pages.bucket import toggle_done
+    from PyQt6.QtWidgets import QPushButton
+    win, app, store = ctx["win"], ctx["app"], ctx["store"]
+    g = pl.geo()
+    assert len(g["tr"]) == 81 and len(g["world"]) > 150 and g["cities"], "geo verisi"
+    assert pl.province_at(32.85, 39.93)[1] == "Ankara" and pl.province_at(29.0, 41.05)[1] == "İstanbul"
+    page = win.pages["goals"]
+    win.show_page("goals")
+    page.tabs.select("map")
+    _pump(app)
+    pv = page.places
+    assert pv.isVisible() and not page.cv.isVisible() and not page.bucket.isVisible()
+    assert not hasattr(win.pages["library"], "places"), "harita Kütüphane'de kalmış"
+    assert all(c.text() != "gv_" + v for v in ("bucket", "map") for c in page.tabs.findChildren(QPushButton)), "sekme adı çevrilmemiş"
+    # haritada tıkla → menü → Gittim
+    mp = pv.map
+    xf = mp._xf()
+    pt = xf.map(QPointF(32.85 * pl._K["tr"], -39.93))
+    mp.click_at(pt, QPoint(0, 0))
+    acts = [a for a in pv.last_menu.actions() if a.text() == t("pl_mark_been")]
+    acts[0].trigger()
+    _pump(app)
+    assert pl.find_place(store, "province", "6")["status"] == "been"
+    # arama: şehir (İzmir il olarak), ülke
+    pv.search.setText("GIZLI_YOK_BOYLE")
+    pv._add_search("want")
+    pv.search.setText("İzmir (" + t("pl_province") + ")")
+    pv._add_search("want")
+    jp = next((k for k in pv._names if k.startswith("Tokyo, ")), None)
+    assert jp, "Tokyo yok"
+    pv.search.setText(jp)
+    pv._add_search("want")
+    pv.search.setText("İtalya (" + t("pl_country") + ")")
+    pv._add_search("been")
+    _pump(app)
+    rec, prov, country = pl.status_maps(store)
+    assert prov["6"] == "been" and prov["35"] == "want" and country["TUR"] == "been"
+    assert country["JPN"] == "want" and country["ITA"] == "been", country
+    assert pv.modes.current == "world"
+    assert "1/81" in pv.card.sub_lbl.text() and "2" in pv.card.sub_lbl.text(), pv.card.sub_lbl.text()
+    assert len(pv.c_been.findChildren(Row)) == 2 and len(pv.c_want.findChildren(Row)) == 2
+    # aynı yere ikinci kez: tekrar eklenmez, durum değişir; menüden kaldır
+    pl.set_status(store, "province", "35", "İzmir", "been")
+    assert len([x for x in store.all("places") if x["key"] == "35"]) == 1 and pl.status_maps(store)[1]["35"] == "been"
+    pl.set_status(store, "province", "35", "İzmir", None)
+    assert pl.find_place(store, "province", "35") is None
+    mp.grab()
+    pv.modes.select("tr")
+    _pump(app)
+    if ctx["shots"]:
+        win.resize(1280, 900)
+        _pump(app, 6)
+        win.grab().save(os.path.join(ctx["shots"], "library_map_tr.png"))
+        pv.modes.select("world")
+        _pump(app, 6)
+        win.grab().save(os.path.join(ctx["shots"], "library_map_world.png"))
+    # bucket list
+    page.tabs.select("bucket")
+    _pump(app)
+    bv = page.bucket
+    assert bv.isVisible() and not pv.isVisible()
+    a = store.add("bucket", {"title": "GIZLI_F1_YARISI", "category": "event", "place": "Monza", "year": 2028})
+    b = store.add("bucket", {"title": "Kuzey ışıkları", "category": "travel"})
+    _pump(app)
+    assert len(bv.board.goals) == 2 and "Monza" in bv.board.meta_of(store.get("bucket", a["id"]), 0, 0)
+    toggle_done(store, store.get("bucket", a["id"]))
+    assert store.get("bucket", a["id"])["done"] and store.get("bucket", a["id"])["done_date"]
+    bv.filter.select("open")
+    _pump(app)
+    assert [x["id"] for x in bv.board.goals] == [b["id"]]
+    bv.filter.select("all")
+    snap = json.dumps(web.build_snapshot(store), ensure_ascii=False)
+    assert "GIZLI_F1" not in snap and "Monza" not in snap and "Tokyo" not in snap
+    if ctx["shots"]:
+        _pump(app, 6)
+        win.grab().save(os.path.join(ctx["shots"], "library_bucket.png"))
+    for c in ("bucket", "places"):
+        for x in list(store.all(c)):
+            store.delete(c, x["id"])
+    page.tabs.select("board")
+
+
+@step("spor girişi: Vücudum (kilo / yağ grafiği), Gelişimim yakın plan + max değer girişi, ayrıntıya kaydırma")
+def _sport_top(ctx):
+    from alphaapp.pages.sport_top import MaxDialog
+    from alphaapp.pages.sport_ui import LineChart
+    from alphaapp.config import prefs
+    win, app, store = ctx["win"], ctx["app"], ctx["store"]
+    page = win.pages["sport"]
+    win.show_page("sport")
+    _pump(app)
+    added = []
+    for k, (w, f) in enumerate(((84.0, 18.0), (82.5, 17.0), (81.0, 16.0))):
+        added.append(store.add("body", {"date": (date.today() - timedelta(days=20 - 10 * k)).isoformat(),
+                                        "weight": w, "fat": f}))
+    _pump(app)
+    page.refresh()
+    _pump(app)
+    assert len(page.c_stats.findChildren(LineChart)) == 1
+    txt = " ".join(lb.text() for lb in page.c_stats.findChildren(QLabel))
+    assert "81" in txt and "16" in txt and "68" in txt, txt     # yağsız kütle 81 × 0.84 ≈ 68
+    n0 = len(store.all("lifts"))
+    d = MaxDialog(win)
+    d.rows["Bench Press"][0].setValue(100)
+    d.rows["Deadlift"][0].setValue(180)
+    d.rows["Deadlift"][1].setValue(3)
+    d.save()
+    _pump(app)
+    new = store.all("lifts")[n0:]
+    assert {x["name"] for x in new} >= {"Bench Press", "Deadlift"}, new
+    page.refresh()
+    _pump(app)
+    assert page.c_dev.model.heat and any(v > 0 for v in page.c_dev.model.heat.values())
+    assert "Bench Press" in " ".join(lb.text() for lb in page.c_dev.findChildren(QLabel))
+    page._open_dev()
+    _pump(app)
+    assert page.c_hero.mode == "dev"
+    # ölçülerle yağ oranı (ABD Donanması): boyun / bel (/ kalça)
+    from alphaapp import fitness
+    from alphaapp.pages.sport_top import FatDialog
+    assert fitness.navy_bodyfat("m", 180, 38, 85) == 16.1 and fitness.navy_bodyfat("f", 165, 32, 70) is None
+    assert 20 < fitness.navy_bodyfat("f", 165, 32, 70, 95) < 30 and fitness.navy_bodyfat("m", 180, 50, 40) is None
+    fd = FatDialog(win)
+    fd.sex.select("m")
+    for k, v in (("height", 180), ("weight", 80), ("neck", 38), ("waist", 85), ("hip", 0), ("chest", 102)):
+        fd.spins[k].setValue(v)
+    assert fd.ok.isEnabled() and "16" in fd.result.text(), fd.result.text()
+    if ctx["shots"]:
+        fd.show()
+        _pump(app, 4)
+        fd.grab().save(os.path.join(ctx["shots"], "fat_dialog.png"))
+    fd.save()
+    _pump(app)
+    rec = next(b for b in store.all("body") if b["date"] == date.today().isoformat())
+    assert rec["fat"] == 16.1 and rec["neck"] == 38 and rec["chest"] == 102 and prefs.get("body_height") == 180
+    added.append(rec)
+    hb = store.add("body", {"date": (date.today() - timedelta(days=1)).isoformat(), "neck": 38, "waist": 90})
+    assert fitness.fat_of(hb) and fitness.fat_of(hb) > 16      # yağ girilmemiş: ölçülerden hesaplanır
+    added.append(hb)
+    page.refresh()
+    _pump(app)
+    page.verticalScrollBar().setValue(0)
+    if ctx["shots"]:
+        win.resize(1400, 900)
+        _pump(app, 6)
+        win.grab().save(os.path.join(ctx["shots"], "sport_top.png"))
+    for x in new:
+        store.delete("lifts", x["id"])
+    for x in added:
+        store.delete("body", x["id"])
+
+
+@step("sadeleştirme: bölüm seçimi (hazır seçim, menüden gizle, veri kalır), ilk açılış koşulu, satırda ⋮ menü düğmesi")
+def _sections(ctx):
+    from alphaapp import navmenu
+    from alphaapp.components import Row
+    from alphaapp.config import prefs
+    win, app, store = ctx["win"], ctx["app"], ctx["store"]
+    old = prefs.get("nav_layout")
+    assert not navmenu.should_onboard(store)          # kayıt varken ilk açılış penceresi çıkmaz
+    d = navmenu.SectionsDialog(win)
+    d._preset("fitness")
+    assert d.selected() == {"habits", "sport", "mind"}
+    if ctx["shots"]:
+        d.show()
+        _pump(app, 4)
+        d.grab().save(os.path.join(ctx["shots"], "sections_dialog.png"))
+    d._save()
+    win.nav.rebuild()
+    vis = navmenu.visible()
+    assert "sport" in vis and "today" in vis and "schedule" in vis and "finance" not in vis and "education" not in vis
+    assert store.all("courses"), "gizlenen bölümün verisi silinmez"
+    assert prefs.get("sections_done")
+    navmenu.apply_sections(navmenu.SECTIONS)
+    assert set(navmenu.SECTIONS) <= set(navmenu.visible())
+    prefs.set("nav_layout", old)
+    win.nav.rebuild()
+    # sağ tık menüsü olan satırda ⋮
+    win.show_page("today")
+    _pump(app, 4)
+    rows = [r for r in win.pages["today"].findChildren(Row) if r.isVisible() and r.receivers(r.menu_requested)]
+    assert rows and all(r._more is not None for r in rows)
+    r = Row("GIZLI_SATIR", "alt")                       # ⋮ tıklanınca menü sinyali (gerçek menü açılmadan)
+    got = []
+    r.menu_requested.connect(lambda pos: got.append(pos))
+    win.pages["today"].add(r)
+    _pump(app, 2)
+    r._more.click()
+    assert got
+    r.hide()
+    r.setParent(None)
 
 
 @step("ekran görüntüleri")

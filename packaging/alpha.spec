@@ -31,6 +31,31 @@ a = Analysis(
     noarchive=False,
     optimize=1,
 )
+# --- paketi hafiflet: kullanılmayan Qt / DLL dosyaları (~30 MB) -----------------------------------------
+# opengl32sw: yazılımsal OpenGL (uygulama OpenGL kullanmıyor) · Qt çevirileri: yalnızca tr / en
+# görüntü biçimleri: gif / ico / jpeg / svg / webp kalır · platform: yalnızca qwindows
+# TLS: Windows Schannel (web.py seçer) → Qt'nin OpenSSL arka ucu ve onun libssl/libcrypto-3-x64 kopyası gereksiz
+# (Python'un _ssl / _hashlib'i libssl-3.dll / libcrypto-3.dll kullanır, onlar kalır)
+DROP = (
+    "opengl32sw.dll", "libcrypto-3-x64.dll", "libssl-3-x64.dll",
+    "qopensslbackend.dll", "qcertonlybackend.dll", "qtuiotouchplugin.dll", "qnetworklistmanager.dll",
+    "qminimal.dll", "qoffscreen.dll", "qicns.dll", "qtga.dll", "qtiff.dll", "qwbmp.dll",
+)
+
+
+def _keep(entry):
+    dest = entry[0].replace("\\", "/")
+    name = dest.rsplit("/", 1)[-1].lower()
+    if name in DROP:
+        return False
+    if "/translations/" in dest and name.endswith(".qm"):
+        return name.endswith(("_tr.qm", "_en.qm"))
+    return True
+
+
+a.binaries = [b for b in a.binaries if _keep(b)]
+a.datas = [d for d in a.datas if _keep(d)]
+
 pyz = PYZ(a.pure)
 
 exe = EXE(

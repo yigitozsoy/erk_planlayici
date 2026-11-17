@@ -11,7 +11,7 @@ from ..components import Page, Card, ResponsiveRow
 from ..config import prefs
 from ..forms import edit_item, item_menu
 from ..i18n import t, WEEKDAYS_LONG, fmt_day_month, fmt_money
-from ..store import parse_date, week_start, day_set
+from ..store import parse_date, week_start
 from ..widgets import IconButton
 from . import CAT_ICON
 
@@ -32,11 +32,13 @@ class Block(QWidget):
     menu = pyqtSignal(object)
     drag_requested = pyqtSignal(object)    # Block
 
-    def __init__(self, time, title, sub="", done=False, important=False, cat=None):
+    def __init__(self, time, title, sub="", done=False, important=False, cat=None, kind=None):
         super().__init__()
         self.drag_info = None      # (koleksiyon, kayıt, kaynak gün)
         self._press = None
         self.setObjectName("BlockImportant" if important else "Block")
+        if kind and not important:
+            self.setProperty("kind", kind)      # theme.BLOCK_KINDS: renkli kutu
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         v = QVBoxLayout(self)
@@ -85,6 +87,15 @@ class Block(QWidget):
         self.menu.emit(e.globalPos())
 
 
+WEEKS = 2   # programda alt alta kaç hafta görünür
+KIND_OF_CAT = {"education": "lesson", "sport": "sport", "work": "meeting", "social": "meeting"}
+
+
+def kind_of(cat):
+    """Kutu rengi (theme.BLOCK_KINDS): ders / spor / toplantı-etkinlik; görevler her zaman "task"."""
+    return KIND_OF_CAT.get(cat)
+
+
 class SchedulePage(Page):
     def __init__(self, store, win):
         super().__init__(store, win, t("nav_schedule"), "")
@@ -99,12 +110,44 @@ class SchedulePage(Page):
         self.btn_habit = self.action(t("add_habit"), lambda: edit_item(win, "habits"), icon="add")
         self.action(t("add_routine"), lambda: edit_item(win, "routine"), icon="add")
 
-        self.row_w = ResponsiveRow(980)
+        # iki hafta alt alta: bu hafta + önümüzdeki hafta (her biri 7 sütun)
+        self.weeks = WEEKS
         self.cols = []
-        self.col_dates = [None] * 7
+        self.col_dates = [None] * (7 * WEEKS)
+        self.week_lbls = []
+        self.rows = []
         self._drop = None          # sürükleme sırasında üzerinde durulan sütun
         self._drop_date = None
-        for i in range(7):
+        for i in range(7 * WEEKS):
+            if i % 7 == 0:
+                lb = QLabel("")
+                lb.setStyleSheet("font-size: 15px; font-weight: 700;")
+                lb.setContentsMargins(4, 10 if i else 0, 0, 0)
+                self.week_lbls.append(lb)
+                if i:
+                    self.add(lb)
+                else:                        # ilk haftanın başlığı + renk açıklaması aynı satırda
+                    top = QWidget()
+                    th = QHBoxLayout(top)
+                    th.setContentsMargins(0, 0, 0, 0)
+                    th.setSpacing(8)
+                    th.addWidget(lb)
+                    th.addStretch(1)
+                    from ..theme import BLOCK_KINDS
+                    for k, hx in BLOCK_KINDS.items():
+                        sw = QLabel()
+                        sw.setFixedSize(10, 10)
+                        sw.setStyleSheet(f"background: {hx}; border-radius: 5px;")
+                        kl = QLabel(t("bk_kind_" + k))
+                        kl.setObjectName("RowSub")
+                        th.addWidget(sw)
+                        th.addWidget(kl)
+                        th.addSpacing(6)
+                    self.add(top)
+                self.row_w = ResponsiveRow(980)
+                self.row_w.lay.setSpacing(8)
+                self.rows.append(self.row_w)
+                self.add(self.row_w)
             c = Card("")
             c.setAcceptDrops(True)
             c.installEventFilter(self)
@@ -119,8 +162,6 @@ class SchedulePage(Page):
             self.cols.append(c)
             self.row_w.add(c, 1)
             self.row_w.lay.setAlignment(c, Qt.AlignmentFlag(0))   # sütunlar en uzunu kadar uzasın
-        self.row_w.lay.setSpacing(8)
-        self.add(self.row_w)
 
     # ============================================================ sürükle-bırak
     def eventFilter(self, obj, e):
@@ -259,31 +300,56 @@ class SchedulePage(Page):
         self.offset = 0 if reset else self.offset + d
         self.refresh()
 
+    def _habit_menu(self, habits, d, blk):
+        """Günün alışkanlık kutusu: her alışkanlık işaretlenebilir satır (menü açık kalmaz, tıkla = tam / boş)."""
+        from PyQt6.QtWidgets import QMenu
+        from .. import habits_core as hc
+        m = QMenu(self)
+        m.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
+        for h in habits:
+            v = hc.state(h, d, self.store) or 0
+            a = m.addAction(("½  " if 0 < v < 1 else "") + h.get("name", ""))
+            a.setCheckable(True)
+            a.setChecked(v >= 1)
+            a.triggered.connect(lambda on, hh=h: hc.set_today(self.store, hh, d, on))
+        m.addSeparator()
+        m.addAction(t("open_habits"), lambda: self.win.show_page("habits"))
+        self.last_menu = m
+        m.popup(blk.mapToGlobal(blk.rect().bottomLeft()))
+
     def refresh(self):
         s, win = self.store, self.win
         td = day_today()
         ws = week_start(td) + timedelta(weeks=self.offset)
         we = ws + timedelta(days=6)
         self.set_sub(f"{fmt_day_month(ws)} – {fmt_day_month(we)}")
+        for k, lb in enumerate(self.week_lbls):
+            a = ws + timedelta(weeks=k)
+            o = self.offset + k
+            name = t("this_week") if o == 0 else t("next_week_title") if o == 1 else ""
+            lb.setText("  ·  ".join(x for x in (t("week_no", n=a.isocalendar()[1]), name,
+                                                 f"{fmt_day_month(a)} – {fmt_day_month(a + timedelta(days=6))}") if x))
         self.btn_this.setVisible(self.offset != 0)
         show_place = prefs.get("show_place", True)
-        show_habits = bool(prefs.get("habits_in_schedule", False))
+        show_habits = bool(prefs.get("habits_in_schedule", True))
         self.btn_habit.setVisible(show_habits)
         names = WEEKDAYS_LONG()
         courses = {c["id"]: c for c in s.all("courses")}
-        habits = s.all("habits") if show_habits else []
+        from .. import habits_core as _hc
+        habits = [h for h in s.all("habits") if _hc.is_sport(h)] if show_habits else []
         for i, col in enumerate(self.cols):
             d = ws + timedelta(days=i)
             self.col_dates[i] = d
             col.clear()
-            col.title_lbl.setText(names[i])
+            col.title_lbl.setText(names[i % 7])
             col.set_sub(fmt_day_month(d) + ("  ·  " + t("today") if d == td else ""))
             items = []   # (sıra, blok, koleksiyon, kayıt, sol tık)
             for r in s.routine_for(d):
                 st, en = r.get("start") or "", r.get("end") or ""
                 items.append((st or "99", Block(f"{st}–{en}" if st and en else st, r.get("title", ""),
                                                 (r.get("place") or "") if show_place else "",
-                                                important=bool(r.get("important")), cat=r.get("category")),
+                                                important=bool(r.get("important")), cat=r.get("category"),
+                                                kind=kind_of(r.get("category"))),
                               "routine", r, None))
             for tk in s.all("tasks"):
                 if parse_date(tk.get("due")) == d:
@@ -292,13 +358,14 @@ class SchedulePage(Page):
                                   Block(_span(tk.get("time"), tk.get("end")),
                                         ("☑ " if done else "☐ ") + tk.get("title", ""),
                                         done=done, important=tk.get("priority") == "high" and not done,
-                                        cat=tk.get("category")), "tasks", tk, None))
+                                        cat=tk.get("category"), kind="task"), "tasks", tk, None))
             for ev in s.all("events"):
                 if parse_date(ev.get("date")) == d:
                     items.append((ev.get("time") or "99:80",
                                   Block(ev.get("time") or "", ev.get("title", ""),
                                         (ev.get("place") or "") if show_place else "",
-                                        important=bool(ev.get("important")), cat="social"), "events", ev, None))
+                                        important=bool(ev.get("important")), cat="social", kind="meeting"),
+                                  "events", ev, None))
             for ex in s.all("exams"):
                 if parse_date(ex.get("date")) == d:
                     c = courses.get(ex.get("course"), {})
@@ -314,17 +381,38 @@ class SchedulePage(Page):
                     items.append(("99:96", Block(t("dir_" + (db.get("direction") or "owe")),
                                                  f"{db.get('person', '')} · {fmt_money(db.get('amount'))}",
                                                  cat="finance"), "debts", db, None))
+            # alışkanlıklar: saatli olanlar ayrı kutu, ötekiler günde tek özet kutu (tıkla → işaretleme menüsü)
+            from .. import habits_core as hc
+            loose = []
             for h in habits:
                 wds = h.get("weekdays") or []
-                if wds and d.weekday() not in wds:
+                if hc.is_quit(h) or (wds and d.weekday() not in wds):
                     continue
-                done = d in day_set(h.get("days"))
-                items.append((h.get("time") or "99:97",
-                              Block(h.get("time") or t("habit"), ("☑ " if done else "☐ ") + h.get("name", ""),
-                                    done=done, cat=h.get("category") or "personal"), "habits", h,
-                              lambda hid=h["id"], dd=d: s.toggle_day("habits", hid, dd)))
+                if h.get("time"):
+                    done = (hc.state(h, d, s) or 0) >= 1
+                    items.append((h["time"], Block(h["time"], ("☑ " if done else "☐ ") + h.get("name", ""),
+                                                   done=done, cat=h.get("category") or "personal",
+                                                   kind=kind_of(h.get("category"))), "habits", h,
+                                  lambda hh=h, dd=d: hc.cycle(s, hh, dd)))
+                else:
+                    loose.append(h)
+            if loose:
+                vals = [hc.state(h, d, s) or 0 for h in loose]
+                n_done = sum(1 for v in vals if v >= 1)
+                left = [h.get("name", "") for h, v in zip(loose, vals) if v < 1]
+                blk = Block(t("sport_habits_n", d=n_done, n=len(loose)),
+                            ", ".join(left) if left else t("habits_all_done"),
+                            done=not left, cat="sport", kind="sport")
+                blk.setToolTip(chr(10).join(("☑ " if v >= 1 else "½ " if v > 0 else "☐ ") + h.get("name", "")
+                                          for h, v in zip(loose, vals)))
+                items.append(("99:97", blk, "habits_day", loose, None))
             items.sort(key=lambda x: x[0])
             for _, blk, coll, it, click in items:
+                if coll == "habits_day":
+                    blk.clicked.connect(lambda b=blk, hs=it, dd=d: self._habit_menu(hs, dd, b))
+                    blk.menu.connect(lambda pos, b=blk, hs=it, dd=d: self._habit_menu(hs, dd, b))
+                    col.add(blk)
+                    continue
                 if coll in DATE_FIELD or coll == "routine":
                     blk.drag_info = (coll, it, d)
                     blk.drag_requested.connect(self._start_drag)

@@ -281,13 +281,12 @@ def add_media(win, mtype="book", text=""):
 class LibraryPage(Page):
     def __init__(self, store, win):
         super().__init__(store, win, t("nav_library"), t("library_sub"))
-        self.action(t("lib_add"), lambda: add_media(win, self.f_type.current if self.f_type.current != "all"
-                                                   else "book"), primary=True, icon="add")
+        self.b_add = self.action(t("lib_add"), self._add, primary=True, icon="add")
         self.t_books = StatTile(t("lib_books_year"))
         self.t_films = StatTile(t("lib_films_year"))
         self.t_series = StatTile(t("lib_series_year"))
         self.t_now = StatTile(t("lib_now"))
-        self.add(TileGrid([self.t_books, self.t_films, self.t_series, self.t_now]))
+        self.tiles = self.add(TileGrid([self.t_books, self.t_films, self.t_series, self.t_now]))
         self.f_type = ChipBar([("all", t("all"))] + [(k, type_name(k)) for k in library.TYPES],
                               prefs.get("lib_type", "all"))
         self.f_type.changed.connect(lambda k: (prefs.set("lib_type", k), self.refresh()))
@@ -303,6 +302,9 @@ class LibraryPage(Page):
         self.wall.menu.connect(lambda m, pos: media_menu(win, m, pos))
         self.card.layout().addWidget(self.wall)
         self.add(self.card)
+
+    def _add(self):
+        add_media(self.win, self.f_type.current if self.f_type.current != "all" else "book")
 
     def refresh(self):
         s = self.store

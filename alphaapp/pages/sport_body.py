@@ -4,7 +4,7 @@ Kipler (ChipBar):
   dev   Gelişimim: kaslar rekorlarına göre kızarır (fitness.development: 1RM / vücut ağırlığı / standart)
   week  Son 7 gün: kaslara düşen set
   mine  Programlarım: seçilen programın bir antrenmanda kaslara düşen seti
-  pop   Popüler programlar: en yaygın 10 programın haftalık seti (fitness.POPULAR)
+  pop   Popüler programlar: hazır programların haftalık seti (fitness.POPULAR)
 Model: body3d.body_view() — muscle-body paketi varsa gerçek anatomi, yoksa basit model.
 """
 from PyQt6.QtCore import Qt, QTimer
@@ -41,7 +41,7 @@ class HeroCard(Card):
         self.win, self.store = win, win.store
         self.add_clicked.connect(lambda: edit_item(win, "lifts"))
         self.mode = prefs.get("hero_mode") if prefs.get("hero_mode") in MODES else "dev"
-        self.sel = {"mine": None, "pop": "ppl"}
+        self.sel = {"mine": None, "pop": "mine"}
 
         row = QHBoxLayout()
         row.setSpacing(18)
@@ -179,7 +179,8 @@ class HeroCard(Card):
         lv = [d["level"] for d in dev.values() if d["main"]] or [0]
         self.head_lbl.setText(t("hero_overall", x=t("dev_%d" % round(sum(lv) / len(lv)))))
         missing = [mus(m) for m in fitness.MUSCLES if m not in dev]
-        self.info.setText(t("hero_no_data", x=", ".join(missing)) if missing else "")
+        self.info.setText(t("hero_no_data_n", n=len(missing)) if missing else "")
+        self.info.setToolTip(", ".join(missing))
         for m in sorted(dev, key=lambda m: -dev[m]["q"])[:9]:
             d = dev[m]
             sub = t("hero_dev_row" if d["main"] else "hero_dev_sec", ex=d["ex"], e=fmt_num(d["e1rm"], 1))
@@ -235,5 +236,6 @@ class HeroCard(Card):
                             {m: t("hero_sets", n=fmt_num(v, 1)) for m, v in load.items()})
         s = sum(e["sets"] for e in p["exercises"])
         self.head_lbl.setText(p["name"])
-        self.info.setText(t("hero_pop_sub", d=p["days"], s=s, lvl=t("lvl_%d" % fitness.weekly_intensity(s))))
+        self.info.setText(t("hero_pop_sub", d=p["days"], s=s, lvl=t("lvl_%d" % fitness.weekly_intensity(s))) +
+                          ("\n" + p["split"] if p.get("split") else ""))
         self._bars(load)

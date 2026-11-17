@@ -29,7 +29,8 @@ from ..theme import theme, qcolor, GOOD, BAD, WARN
 # alan renkleri: gri vurgulu arayüzde yalnızca küçük noktalar / ince tonlar (mor yok)
 AREA_COLOR = {"education": "#7f9cb0", "career": "#c8a35b", "venture": "#d08a4e", "body": "#86a878",
               "mind": "#6fa3a0", "finance": "#d9c8a0", "growth": "#a8a8a8"}
-VIEWS = ("board", "wheel")
+VIEWS = ("board", "wheel", "bucket", "map", "cv")
+GOAL_VIEWS = ("board", "wheel")
 IMAGE_EXT = (".png", ".jpg", ".jpeg", ".webp", ".bmp", ".gif")
 
 
@@ -190,6 +191,28 @@ class BoardView(QWidget):
     goal_clicked = pyqtSignal(object)
     add_requested = pyqtSignal()
     image_in = pyqtSignal(object, str)      # (hedef ya da None, görsel dosya adı)
+    menu_at = pyqtSignal(object, object)    # (kayıt, global konum) — sağ tık
+    SHOW_PROGRESS = True
+
+    # alt sınıflar (bucket list) için kancalar
+    def color_of(self, g):
+        return area_color(g.get("area"))
+
+    def icon_of(self, g):
+        return area_icon(g.get("area"))
+
+    def meta_of(self, g, pr, n):
+        due = (g.get("due") or "")[:4]
+        return " · ".join(x for x in (t("hz_" + (g.get("horizon") or "year")), f"→ {due}" if due else "",
+                                      f"%{int(round(pr * 100))}", t("goal_days_30", n=n) if n else "") if x)
+
+    def add_texts(self):
+        return t("pin_add"), t("pin_add_sub")
+
+    def contextMenuEvent(self, e):
+        i = self._tile_at(e.pos().toPointF())
+        if i is not None and self.tiles[i][2] is not None:
+            self.menu_at.emit(self.tiles[i][2], e.globalPos())
 
     GAP = 16
     COL = 236
@@ -384,14 +407,15 @@ class BoardView(QWidget):
                 p.drawLine(QPointF(img.center().x(), cy - 33), QPointF(img.center().x(), cy - 19))
                 p.setPen(text)
                 p.setFont(_font(13, True))
-                p.drawText(QRectF(img.x(), cy + 4, img.width(), 20), int(Qt.AlignmentFlag.AlignCenter), t("pin_add"))
+                add_t, add_s = self.add_texts()
+                p.drawText(QRectF(img.x(), cy + 4, img.width(), 20), int(Qt.AlignmentFlag.AlignCenter), add_t)
                 p.setFont(_font(11))
                 p.setPen(text2)
                 p.drawText(QRectF(img.x() + 14, cy + 26, img.width() - 28, 34), int(
                     Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignHCenter | Qt.TextFlag.TextWordWrap),
-                    t("pin_add_sub"))
+                    add_s)
                 continue
-            ac = area_color(g.get("area"))
+            ac = self.color_of(g)
             path_img = self._img_path(g)
             pm = self._pixmap(path_img, img.width(), img.height()) if path_img else QPixmap()
             p.save()
@@ -405,7 +429,7 @@ class BoardView(QWidget):
                 lg.setColorAt(0, mix(card, ac, 0.42))
                 lg.setColorAt(1, mix(card, ac, 0.14))
                 p.fillRect(img, lg)
-                ic = icons.pixmap(area_icon(g.get("area")), text.name(), 20)
+                ic = icons.pixmap(self.icon_of(g), text.name(), 20)
                 p.setOpacity(0.55)
                 p.drawPixmap(QPointF(img.x() + 16, img.y() + 16), ic)
                 p.setOpacity(1.0)
@@ -424,13 +448,15 @@ class BoardView(QWidget):
                 p.drawRoundedRect(b, 16, 16)
                 p.setPen(QColor("#0f0f0f"))
                 p.drawText(b, int(Qt.AlignmentFlag.AlignCenter), lbl)
-                chip = f"%{int(round(pr * 100))}"
-                cb = QRectF(img.left() + 10, img.bottom() - 34, QFontMetrics(p.font()).horizontalAdvance(chip) + 20, 24)
-                p.setPen(Qt.PenStyle.NoPen)
-                p.setBrush(QColor(255, 255, 255, 225))
-                p.drawRoundedRect(cb, 12, 12)
-                p.setPen(QColor("#0f0f0f"))
-                p.drawText(cb, int(Qt.AlignmentFlag.AlignCenter), chip)
+                if self.SHOW_PROGRESS:
+                    chip = f"%{int(round(pr * 100))}"
+                    cb = QRectF(img.left() + 10, img.bottom() - 34,
+                                QFontMetrics(p.font()).horizontalAdvance(chip) + 20, 24)
+                    p.setPen(Qt.PenStyle.NoPen)
+                    p.setBrush(QColor(255, 255, 255, 225))
+                    p.drawRoundedRect(cb, 12, 12)
+                    p.setPen(QColor("#0f0f0f"))
+                    p.drawText(cb, int(Qt.AlignmentFlag.AlignCenter), chip)
             if g.get("done"):
                 p.setPen(QPen(QColor("#ffffff"), 2))
                 p.setBrush(QColor("#2ba640"))
@@ -446,9 +472,7 @@ class BoardView(QWidget):
             else:
                 cap.translate(0, -20)
             n = self.heat.get(g["id"], (0, 0))[1]
-            due = (g.get("due") or "")[:4]
-            meta = " · ".join(x for x in (t("hz_" + (g.get("horizon") or "year")), f"→ {due}" if due else "",
-                                          f"%{int(round(pr * 100))}", t("goal_days_30", n=n) if n else "") if x)
+            meta = self.meta_of(g, pr, n)
             p.setFont(_font(11))
             p.setPen(text2)
             p.setBrush(ac)
@@ -712,7 +736,7 @@ class GoalsPage(Page):
     def __init__(self, store, win):
         super().__init__(store, win, t("nav_goals"), t("goals_sub"))
         self.sample_btn = self.action(t("goals_sample_del"), self._remove_sample, icon="delete")
-        self.action(t("add_goal"), lambda: edit_item(win, "goals", preset=self._new_preset()), primary=True, icon="add")
+        self.b_add = self.action(t("add_goal"), self._add, primary=True, icon="add")
         view = prefs.get("goals_view", "board")
         self.view = view if view in VIEWS else "board"
         self.area = "all"
@@ -774,20 +798,48 @@ class GoalsPage(Page):
         self.c_road = Card(t("roadmap_title"), t("roadmap_sub"))
         wv.addWidget(self.c_road)
         self.add(self.wheel_row)
+
+        # CV: şu anki + hayalimdeki, yan yana
+        from .cv import CvView
+        self.cv = CvView(win)
+        self.add(self.cv)
+        # bucket list + harita (2.x'te Kütüphane'deydi)
+        from .places import PlacesView
+        from .bucket import BucketView
+        self.bucket = self.add(BucketView(win))
+        self.places = self.add(PlacesView(win))
         self._apply_view()
+
+    def _add(self):
+        v = self.view
+        if v == "bucket":
+            self.bucket._add()
+        elif v == "map":
+            self.places.search.setFocus()
+        elif v == "cv":
+            self.cv._add("now")
+        else:
+            edit_item(self.win, "goals", preset=self._new_preset())
 
     # ---------------------------------------------------------- görünüm
     def _set_view(self, v):
         self.view = v
         prefs.set("goals_view", v)
         self._apply_view()
+        self.refresh()
 
     def _apply_view(self):
         has = bool(self.store.all("goals"))
-        self.c_empty.setVisible(not has)
-        self.tabs.setVisible(has)
-        self.board_host.setVisible(has and self.view == "board")
-        self.wheel_row.setVisible(has and self.view == "wheel")
+        v = self.view
+        gv = v in GOAL_VIEWS
+        self.c_empty.setVisible(not has and gv)
+        self.tabs.setVisible(True)
+        self.board_host.setVisible(has and v == "board")
+        self.wheel_row.setVisible(has and v == "wheel")
+        self.cv.setVisible(v == "cv")
+        self.bucket.setVisible(v == "bucket")
+        self.places.setVisible(v == "map")
+        self.b_add.setText(t({"bucket": "bk_add", "map": "pl_add", "cv": "new_cv"}.get(v, "add_goal")))
 
     def _new_preset(self):
         roots = [g for g in self.store.goal_roots() if g.get("horizon") == "life"]
@@ -802,9 +854,15 @@ class GoalsPage(Page):
     def refresh(self):
         s, td = self.store, day_today()
         goals = s.all("goals")
-        self.sample_btn.setVisible(any(g.get("sample") for g in goals) or
-                                   any(w.get("sample") for w in s.all("wheel")))
+        self.sample_btn.setVisible(self.view in GOAL_VIEWS and (any(g.get("sample") for g in goals) or
+                                   any(w.get("sample") for w in s.all("wheel"))))
         self._apply_view()
+        if self.view == "cv":
+            return self.cv.refresh()
+        if self.view == "bucket":
+            return self.bucket.refresh()
+        if self.view == "map":
+            return self.places.refresh()
         if not goals:
             return
         heat = {}

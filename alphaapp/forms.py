@@ -1,9 +1,8 @@
 """Kayıt ekleme / düzenleme: her koleksiyonun alanları şemayla tanımlanır, tek bir form penceresi hepsini çizer."""
-from datetime import date
 
-from PyQt6.QtCore import Qt, QDate, QTime
+from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QAction
-from PyQt6.QtWidgets import (QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QComboBox, QDateEdit, QTimeEdit,
+from PyQt6.QtWidgets import (QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QComboBox,
                              QPlainTextEdit, QPushButton, QWidget, QMenu, QGridLayout, QButtonGroup)
 
 from .config import day_today
@@ -187,7 +186,9 @@ def _schema(coll, store):
         return [("date", "f_date", "date", None),
                 ("weight", "f_weight_kg", "number?", None),
                 ("fat", "f_bodyfat", "number?", None),
+                ("neck", "f_neck", "number?", None),
                 ("waist", "f_waist", "number?", None),
+                ("hip", "f_hip", "number?", None),
                 ("chest", "f_chest_cm", "number?", None),
                 ("arm", "f_arm", "number?", None),
                 ("thigh", "f_thigh", "number?", None),
@@ -246,7 +247,10 @@ def _schema(coll, store):
     if coll == "habits":
         out = [("name", "f_habit_name", "text", None),
                ("category", "f_category", "cats", None),
-               ("goal", "f_goal_days", "number?", None)]
+               ("kind", "f_habit_kind", "choice", [("build", t("habit_kind_build")), ("quit", t("habit_kind_quit"))]),
+               ("goal", "f_goal_days", "number?", None),
+               ("week_min", "f_week_min", "number?", None),
+               ("gap", "f_gap", "number?", None)]
         if prefs.get("habits_in_schedule", False):
             out += [("weekdays", "f_habit_weekdays", "days", None),
                     ("time", "f_time", "time?", None)]
@@ -277,6 +281,30 @@ def _schema(coll, store):
                 ("image", "f_image", "image", None),
                 ("done", "f_goal_done", "bool", None),
                 ("note", "f_note", "multiline", None)]
+    if coll == "cv":
+        from .pages.cv import ALL_SECTIONS, section_name
+        return [("side", "f_cv_side", "choice", [("now", t("cv_now")), ("dream", t("cv_dream"))]),
+                ("section", "f_cv_section", "choice", [(k, section_name(k)) for k in ALL_SECTIONS]),
+                ("title", "f_cv_title", "text", None),
+                ("org", "f_cv_org", "text", None),
+                ("when", "f_cv_when", "text", None),
+                ("detail", "f_cv_detail", "multiline", None),
+                ("note", "f_note", "multiline", None)]
+    if coll == "bucket":
+        from .pages.bucket import CATS, cat_name
+        return [("title", "f_bk_title", "text", None),
+                ("category", "f_category", "choice", [(k, cat_name(k)) for k in CATS]),
+                ("place", "f_bk_place", "text", None),
+                ("year", "f_bk_year", "number?", None),
+                ("image", "f_image", "image", None),
+                ("link", "f_link", "text", None),
+                ("done", "f_bk_done", "bool", None),
+                ("note", "f_note", "multiline", None)]
+    if coll == "places":
+        return [("name", "f_pl_name", "text", None),
+                ("status", "f_pl_status", "choice", [("been", t("pl_been")), ("want", t("pl_want"))]),
+                ("date", "f_pl_date", "date?", None),
+                ("note", "f_note", "multiline", None)]
     if coll == "wishlist":
         return [("name", "f_wish_name", "text", None),
                 ("price", "f_price", "money?", None),
@@ -300,7 +328,7 @@ REQUIRED = {"tasks": "title", "routine": "title", "courses": "name", "exams": "c
             "events": "title", "birthdays": "name", "debts": "person", "investments": "name",
             "transactions": "amount", "workouts": "date", "habits": "name", "meals": "name",
             "accounts": "name", "recurring": "name", "goals": "title", "transcript": "name", "media": "title",
-            "lifts": "name", "wishlist": "name"}
+            "lifts": "name", "wishlist": "name", "cv": "title", "bucket": "title", "places": "name"}
 
 GOAL_HORIZONS = ("life", "y10", "y3", "year", "term", "action")
 
@@ -327,7 +355,7 @@ def defaults(coll):
         "transactions": {"kind": "expense", "date": d, "category": "Yemek"},
         "debts": {"direction": "owe"},
         "investments": {"date": d, "kind": "Hisse"},
-        "habits": {"category": "personal", "goal": 7},
+        "habits": {"category": "personal", "goal": 7, "kind": "build"},
         "meals": {"date": d},
         "body": {"date": d},
         "lifts": {"date": d, "r": 1},
@@ -337,6 +365,8 @@ def defaults(coll):
         "accounts": {"name": "Nakit"},
         "recurring": {"kind": "expense", "active": True, "category": "Faturalar"},
         "goals": {"area": "growth", "horizon": "year"},
+        "bucket": {"category": "experience"},
+        "places": {"status": "want"},
     }.get(coll, {})
 
 
@@ -352,22 +382,20 @@ class OptDate(QWidget):
             self.sw = ToggleSwitch(bool(value))
             self.sw.toggled.connect(self._sync)
             lay.addWidget(self.sw)
-        self.ed = QDateEdit()
-        self.ed.setCalendarPopup(True)
-        self.ed.setDisplayFormat("d MMMM yyyy, dddd")
-        d = parse_date(value) or day_today()
-        self.ed.setDate(QDate(d.year, d.month, d.day))
+        from .pickers import DateButton
+        self.ed = DateButton(parse_date(value) or day_today())
+        if self.sw is not None:
+            self.ed.picked.connect(lambda: self.sw.setChecked(True))
         lay.addWidget(self.ed, 1)
         self._sync()
 
     def _sync(self, *_):
-        self.ed.setEnabled(self.sw is None or self.sw.isChecked())
+        self.ed.set_off(self.sw is not None and not self.sw.isChecked())
 
     def value(self):
         if self.sw is not None and not self.sw.isChecked():
             return None
-        q = self.ed.date()
-        return date(q.year(), q.month(), q.day()).isoformat()
+        return self.ed.value().isoformat()
 
 
 class OptTime(QWidget):
@@ -377,17 +405,16 @@ class OptTime(QWidget):
         lay.setContentsMargins(0, 0, 0, 0)
         lay.setSpacing(10)
         self.sw = ToggleSwitch(bool(value))
-        self.sw.toggled.connect(lambda v: self.ed.setEnabled(v))
+        self.sw.toggled.connect(lambda v: self.ed.set_off(not v))
         lay.addWidget(self.sw)
-        self.ed = QTimeEdit()
-        self.ed.setDisplayFormat("HH:mm")
-        tm = QTime.fromString(value or "09:00", "HH:mm")
-        self.ed.setTime(tm if tm.isValid() else QTime(9, 0))
-        self.ed.setEnabled(bool(value))
+        from .pickers import TimeButton
+        self.ed = TimeButton(value or "09:00")
+        self.ed.set_off(not value)
+        self.ed.picked.connect(lambda: self.sw.setChecked(True))
         lay.addWidget(self.ed, 1)
 
     def value(self):
-        return self.ed.time().toString("HH:mm") if self.sw.isChecked() else None
+        return self.ed.value() if self.sw.isChecked() else None
 
 
 CAT_ICONS = {"sport": "cat_sport", "work": "cat_work", "education": "cat_education", "social": "group",

@@ -16,7 +16,7 @@ from PyQt6.QtNetwork import QNetworkAccessManager, QNetworkRequest, QNetworkRepl
 
 from .config import prefs, day_today, day_end_hour
 from .i18n import t, fmt_money
-from .store import parse_date, day_set, CATEGORIES
+from .store import parse_date, CATEGORIES
 
 DAYS_BACK, DAYS_AHEAD = 7, 30         # haftalık program için geçen hafta da
 MAX_AGE_MIN = 60                     # içerik değişmese de en geç bu kadar dakikada bir gönder ("son güncelleme")
@@ -95,11 +95,12 @@ def day_blocks(store, d, show_place=True, show_habits=False, courses=None):
             add("99:96", "debt", t("dir_" + (db.get("direction") or "owe")),
                 f"{db.get('person', '')} · {fmt_money(db.get('amount'))}", "", "finance")
     if show_habits:
+        from . import habits_core as hc
         for h in store.all("habits"):
             wds = h.get("weekdays") or []
-            if wds and d.weekday() not in wds:
+            if (wds and d.weekday() not in wds) or hc.is_quit(h) or not hc.is_sport(h):
                 continue
-            done = d in day_set(h.get("days"))
+            done = (hc.state(h, d, store) or 0) > 0
             add(h.get("time") or "99:97", "habit", h.get("time") or t("habit"),
                 ("☑ " if done else "☐ ") + h.get("name", ""), "", h.get("category") or "personal", done=done)
     out.sort(key=lambda x: x[0])
@@ -175,7 +176,7 @@ def build_snapshot(store, now=None):
     now = now or datetime.now()
     td = day_today()
     show_place = prefs.get("show_place", True)
-    show_habits = bool(prefs.get("habits_in_schedule", False))
+    show_habits = bool(prefs.get("habits_in_schedule", True))
     courses = {c["id"]: c for c in store.all("courses")}
     days = []
     for i in range(-DAYS_BACK, DAYS_AHEAD + 1):
@@ -239,6 +240,10 @@ class WebSync(QObject):
     def __init__(self, store, parent=None):
         super().__init__(parent)
         self.store = store
+        # Windows'un kendi TLS'i (Schannel): pakette Qt'nin OpenSSL kopyası yok (packaging/alpha.spec)
+        from PyQt6.QtNetwork import QSslSocket
+        if "schannel" in QSslSocket.availableBackends():
+            QSslSocket.setActiveBackend("schannel")
         self.net = QNetworkAccessManager(self)
         self._reply = None
         self._pending = False

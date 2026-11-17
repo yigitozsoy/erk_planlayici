@@ -296,7 +296,18 @@ class FinancePage(Page):
         rows.append((t("goal_fixed", n=len(exp)) if exp else t("goal_fixed_none"), -exp_sum,
                      names([r for _, r in exp], "name"), "arrow_up"))
         rows.append((t("goal_debt"), -owe_sum, names(owe, "person"), "swap"))
+        # boş parçalar 0 ₺ yazmak yerine ne girileceğini söyler; tıklayınca ekleme formu açılır
+        add_for = {"wallet": ("accounts", not s.all("accounts"), t("goal_hint_cash")),
+                   "arrow_down": ("recurring", not inc, t("goal_hint_income")),
+                   "arrow_up": ("recurring", not exp, t("goal_hint_fixed"))}
         for title, v, sub, ic in rows:
+            coll, missing, hint = add_for.get(ic, (None, False, ""))
+            if missing:
+                r = Row(title, hint, value="+", value_role="text3", icon=ic, icon_role="text3")
+                r.clicked.connect(lambda c_=coll, k=("income" if ic == "arrow_down" else "expense"):
+                                  edit_item(self.win, c_, preset={"kind": k} if c_ == "recurring" else None))
+                c.add(r)
+                continue
             c.add(Row(title, sub, value=fmt_money(v, sign=True), value_role="good" if v > 0 else "bad" if v < 0
                       else "text3", icon=ic, icon_role="text2"))
         c.add(Row(t("goal_result", d=fmt_day(goal)), t("goal_ok") if result >= 0 else

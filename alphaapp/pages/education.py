@@ -178,6 +178,37 @@ class EducationPage(Page):
         card.body.addSpacing(4)
         for e in exams:
             card.add(self._exam_row(e))
+        # çalışma kareleri (Alışkanlıklar'dan taşındı): son 2 ay + önümüzdeki 1 ay, tıkla = o gün çalıştım
+        from datetime import timedelta
+        from ..components import DayGrid
+        from ..i18n import WEEKDAYS_SHORT, MONTHS_SHORT
+        from ..store import day_set, streaks, week_start
+        days = day_set(c.get("study_days"))
+        td = day_today()
+        ws = week_start(td)
+        cur, _best = streaks(days, td)
+        # kronometre süresi: 1 saat ve üstü tam kare, daha azı yarım; süresiz (elle) işaret tam
+        mins = {}
+        for se in s.all("sessions"):
+            if se.get("kind") == "study" and se.get("course") == c["id"]:
+                d = parse_date(se.get("date"))
+                if d:
+                    mins[d] = mins.get(d, 0.0) + num(se.get("minutes"))
+        vals = {td - timedelta(days=k): 0.0 for k in range(-45, 100)}
+        vals.update({d: (1.0 if mins.get(d, 60) >= 60 else 0.5) for d in days})
+        wk_min = sum(m for d, m in mins.items() if ws <= d <= ws + timedelta(days=6))
+        info_txt = t("study_info", w=sum(1 for d in days if ws <= d <= ws + timedelta(days=6)), s=cur, n=len(days))
+        if wk_min:
+            info_txt += " · " + t("study_week_time", h=int(wk_min // 60), m=int(wk_min % 60))
+        head = QLabel(info_txt)
+        head.setObjectName("RowSub")
+        head.setContentsMargins(4, 10, 0, 0)
+        card.add(head)
+        grid = DayGrid(WEEKDAYS_SHORT(), MONTHS_SHORT(), span=(2, 1))
+        grid.set_values(vals, [])
+        grid.day_toggled.connect(lambda d, cid=c["id"]: self.store.toggle_day("courses", cid, d, "study_days"))
+        card.add(grid)
+        card.grid = grid
         return card, is_below, avg
 
     def _exam_row(self, e):

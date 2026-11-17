@@ -7,12 +7,12 @@ Sayaç parçası ClockPanel, ders kartlarında da (education) kullanılan win.cl
 import math
 from datetime import timedelta
 
-from PyQt6.QtCore import Qt, QTimer, QPointF, QRectF, QTime, pyqtSignal
+from PyQt6.QtCore import Qt, QTimer, QPointF, QRectF, pyqtSignal
 from PyQt6.QtGui import QPainter, QPen, QColor, QFont
-from PyQt6.QtWidgets import (QWidget, QHBoxLayout, QVBoxLayout, QLabel, QPushButton, QSpinBox,
-                             QTimeEdit)
+from PyQt6.QtWidgets import (QWidget, QHBoxLayout, QVBoxLayout, QLabel, QPushButton, QSpinBox)
 
 from ..clock import fmt_clock
+from ..pickers import TimeButton
 from ..components import Page, Card, Row, StatTile, TileGrid, ChipBar, BarChart, DayGrid, HBars
 from ..config import prefs, day_today
 from ..forms import edit_item, bind_row
@@ -401,14 +401,30 @@ class MindPage(Page):
         td = day_today()
         hrs = [h for x in s.all("sleep") for h in [sleep_hours(x)]
                if h and parse_date(x.get("date")) and td - timedelta(days=6) <= parse_date(x["date"]) <= td]
-        self.t_sleep.set(fmt_minutes(60 * sum(hrs) / len(hrs)) if hrs else "—",
-                         t("n_nights", n=len(hrs)) if hrs else "")
+        # yatış düzeni: son 7 gecenin yatış saatinin ortalamadan sapması (18:00'den sonraki dakika)
+        beds = []
+        for x in s.all("sleep"):
+            d = parse_date(x.get("date"))
+            try:
+                bh, bm = map(int, str(x.get("bed")).split(":"))
+            except (ValueError, TypeError):
+                continue
+            if d and td - timedelta(days=6) <= d <= td:
+                beds.append(((bh - 18) % 24) * 60 + bm)
+        note = t("n_nights", n=len(hrs)) if hrs else ""
+        if len(beds) >= 3:
+            avg = sum(beds) / len(beds)
+            dev = (sum((b - avg) ** 2 for b in beds) / len(beds)) ** 0.5
+            note += " · " + t("bed_spread", m=int(round(dev)))
+        self.t_sleep.set(fmt_minutes(60 * sum(hrs) / len(hrs)) if hrs else "—", note,
+                         "good" if len(beds) >= 3 and dev <= 30 else None)
         md = med_days(s)
         wm = minutes_between(s, "meditation", td - timedelta(days=td.weekday()), td)
         lw = minutes_between(s, "meditation", td - timedelta(days=td.weekday() + 7), td - timedelta(days=td.weekday() + 1))
         self.t_med.set(fmt_minutes(wm) if wm else "—", t("last_week_v", v=fmt_minutes(lw)) if lw else "")
         sk = streak(md, td)
-        self.t_streak.set(t("streak_days", n=sk) if sk else "—", t("med_total_days", n=len(md)) if md else "")
+        self.t_streak.set(str(sk) if sk else "—", t("days") + " · " + t("med_total_days", n=len(md)) if md else "",
+                          "good" if sk >= 3 else None)
         st = minutes_between(s, "study", td - timedelta(days=td.weekday()), td)
         self.t_study.set(fmt_minutes(st) if st else "—", "")
         self.med_grid.set_days(md)
@@ -429,10 +445,8 @@ class MindPage(Page):
         lb = QLabel(t("sleep_last_night"))
         lb.setObjectName("RowTitle")
         h.addWidget(lb)
-        bed = QTimeEdit(QTime.fromString((last or {}).get("bed") or prefs.get("sleep_bed", "23:30"), "HH:mm"))
-        bed.setDisplayFormat("HH:mm")
-        wake = QTimeEdit(QTime.fromString((last or {}).get("wake") or prefs.get("sleep_wake", "07:30"), "HH:mm"))
-        wake.setDisplayFormat("HH:mm")
+        bed = TimeButton((last or {}).get("bed") or prefs.get("sleep_bed", "23:30"))
+        wake = TimeButton((last or {}).get("wake") or prefs.get("sleep_wake", "07:30"))
         for w, tip in ((bed, "sleep_bed"), (wake, "sleep_wake")):
             w.setToolTip(t(tip))
             w.setFixedWidth(84)
@@ -444,7 +458,7 @@ class MindPage(Page):
         save = QPushButton(t("save"))
         save.setObjectName("Pill")
         save.setCursor(Qt.CursorShape.PointingHandCursor)
-        save.clicked.connect(lambda: self._save_sleep(td, bed.time().toString("HH:mm"), wake.time().toString("HH:mm")))
+        save.clicked.connect(lambda: self._save_sleep(td, bed.value(), wake.value()))
         h.addWidget(save)
         h.addStretch(1)
         c.add(quick)
@@ -459,7 +473,8 @@ class MindPage(Page):
             data.append((WEEKDAYS_SHORT()[d.weekday()], [round(sleep_hours(x) or 0, 1) if x else 0]))
         if rows:
             ch = BarChart(roles=("text",), names=(t("sleep_hours"),), fmt=lambda v: fmt_num(v, 1), height=140,
-                          max_value=10)
+                          max_value=10, band=(7, 9))
+            ch.setToolTip(t("sleep_band_tip"))
             ch.set_data(data)
             c.add(ch)
         for x in list(reversed(rows))[:4]:

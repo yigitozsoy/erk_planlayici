@@ -7,10 +7,10 @@ LineChart       basit çizgi grafik (rekor ilerlemesi, kilo), isteğe bağlı he
 TemplatesCard, RecordsCard, BodyCard   spor sayfasındaki kartlar (giriş: pages/sport_body.HeroCard).
 """
 
-from PyQt6.QtCore import Qt, QPointF, QRectF, QDate, QTimer
+from PyQt6.QtCore import Qt, QPointF, QRectF, QTimer
 from PyQt6.QtGui import QPainter, QPainterPath, QColor, QPen, QFont, QFontMetrics
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QComboBox,
-                             QSpinBox, QDoubleSpinBox, QPushButton, QScrollArea, QFrame, QDateEdit, QMenu,
+                             QSpinBox, QDoubleSpinBox, QPushButton, QScrollArea, QFrame, QMenu,
                              QMessageBox, QInputDialog, QCompleter)
 
 from .. import fitness
@@ -21,6 +21,7 @@ from ..i18n import t, fmt_num, fmt_day, fmt_day_month
 from ..store import parse_date, num
 from ..theme import theme, qcolor
 from ..widgets import ThemedDialog, IconButton
+from ..pickers import DateButton
 
 
 def mus(m):
@@ -173,10 +174,8 @@ class WorkoutDialog(ThemedDialog):
         self.kind.setPlaceholderText(t("wd_name"))
         top.addWidget(self.kind, 1)
         d0 = parse_date(data.get("date")) or day_today()
-        self.date = QDateEdit(QDate(d0.year, d0.month, d0.day))
-        self.date.setCalendarPopup(True)
-        self.date.setDisplayFormat("d MMM yyyy, ddd")
-        self.date.dateChanged.connect(lambda *_: [b._hint() for b in self.blocks])
+        self.date = DateButton(d0)
+        self.date.changed.connect(lambda: [b._hint() for b in self.blocks])
         top.addWidget(self.date)
         self.minutes = QSpinBox()
         self.minutes.setRange(0, 600)
@@ -245,7 +244,7 @@ class WorkoutDialog(ThemedDialog):
         self._update_summary()
 
     def day(self):
-        return self.date.date().toPyDate()
+        return self.date.value()
 
     def add_block(self, name="", sets=()):
         b = _ExerciseBlock(self, name, sets)
@@ -617,17 +616,27 @@ class BodyCard(Card):
         gb.setCursor(Qt.CursorShape.PointingHandCursor)
         gb.mousePressEvent = lambda _e: QTimer.singleShot(0, self._set_goal)
         h.addWidget(gb, 1)
-        fat = next((num(b.get("fat")) for b in reversed(rows) if num(b.get("fat")) > 0), None)
+        fat = next((fitness.fat_of(b) for b in reversed(rows) if fitness.fat_of(b)), None)
         h.addWidget(_box(t("body_fat"), f"%{fmt_num(fat, 1)}" if fat else "—"), 1)
         self.add(strip)
         if len(wts) > 1 or (wts and goal):
             ch = LineChart(150, "kg")
             ch.set_data(wts, goal)
             self.add(ch)
+        fpts = [(parse_date(b["date"]), fitness.fat_of(b)) for b in rows if fitness.fat_of(b)]
+        if len(fpts) > 1:
+            lb = QLabel(t("body_fat"))
+            lb.setObjectName("RowSub")
+            self.add(lb)
+            fc = LineChart(110, "%")
+            fc.set_data(fpts)
+            self.add(fc)
         for b in list(reversed(rows))[:5]:
-            bits = [f"{t(k)} {fmt_num(num(b[f]), 1)}" for f, k in (("fat", "body_fat"), ("waist", "f_waist"),
-                                                                   ("chest", "f_chest_cm"), ("arm", "f_arm"),
-                                                                   ("thigh", "f_thigh")) if num(b.get(f)) > 0]
+            fv = fitness.fat_of(b)
+            meas = (("neck", "f_neck"), ("waist", "f_waist"), ("hip", "f_hip"), ("chest", "f_chest_cm"),
+                    ("arm", "f_arm"), ("thigh", "f_thigh"))
+            bits = ([f"{t('body_fat')} %{fmt_num(fv, 1)}"] if fv else []) + \
+                [f"{t(k)} {fmt_num(num(b[f]), 1)}" for f, k in meas if num(b.get(f)) > 0]
             r = Row(fmt_day(parse_date(b["date"])), " · ".join(bits),
                     value=f"{fmt_num(num(b.get('weight')), 1)} kg" if num(b.get("weight")) else "")
             self.add(bind_row(self.win, r, "body", b))

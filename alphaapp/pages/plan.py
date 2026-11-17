@@ -17,7 +17,7 @@ from ..components import Page, Card, Row, ResponsiveRow, ElideLabel, StatTile, T
 from ..config import prefs
 from ..forms import bind_row, edit_item
 from ..i18n import t, fmt_long_date, fmt_day
-from ..store import parse_date, day_set, streaks, num
+from ..store import parse_date, num
 from ..theme import theme
 from ..timeline import DayTimeline, to_min, hhmm, fmt_dur, now_minutes
 from . import task_row, deadline_row, time_lead, QuickTask
@@ -360,12 +360,13 @@ class PlanPage(Page):
                          t("plan_y_tasks_note", n=left_y) if left_y else (t("plan_y_all_done") if total else ""),
                          "good" if total and not left_y else None)
         habits = s.all("habits")
-        hd = sum(1 for h in habits if yd in day_set(h.get("days")))
+        from .. import habits_core as hc
+        hd = sum(1 for h in habits if (hc.state(h, yd, s) or 0) >= 1)
         self.y_habits.set(f"{hd}/{len(habits)}" if habits else "—", "",
                           "good" if habits and hd == len(habits) else None)
         best, best_name = 0, ""
         for h in habits:
-            cur, _ = streaks(day_set(h.get("days")), td)
+            cur = hc.streak_info(h, td, s)["cur"]
             if cur > best:
                 best, best_name = cur, h.get("name", "")
         self.y_streak.set(t("n_days", n=best) if best else "—", best_name)

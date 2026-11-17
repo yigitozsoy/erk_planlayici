@@ -1,6 +1,6 @@
 """Gösterge paneli yapı taşları: sayfa iskeleti, kart, liste satırı, istatistik kutusu, küçük grafikler."""
 from PyQt6.QtCore import Qt, pyqtSignal, QRectF, QPointF, QTimer, QRect, QSize, QPoint, QMimeData
-from PyQt6.QtGui import QPainter, QPen, QFontMetrics, QFont, QDrag
+from PyQt6.QtGui import QPainter, QPen, QFontMetrics, QFont, QDrag, QColor
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, QScrollArea, QBoxLayout, QPushButton,
                              QToolTip, QSizePolicy, QFrame, QLayout, QApplication)
 
@@ -369,6 +369,32 @@ class Row(QWidget):
     def contextMenuEvent(self, e):
         self.menu_requested.emit(e.globalPos())
 
+    # sağ tık menüsü olan satırda fareyle üzerine gelince görünen ⋮ düğmesi (menü yalnızca sağ tıkla kalmasın)
+    _more = None
+
+    def showEvent(self, e):
+        super().showEvent(e)
+        if self._more is None and self.receivers(self.menu_requested) > 0:
+            from .i18n import t
+            b = IconButton("more_vert", t("row_more"), 26, 18, role="text2")
+            sp = b.sizePolicy()
+            sp.setRetainSizeWhenHidden(True)
+            b.setSizePolicy(sp)
+            b.setVisible(self.underMouse())
+            b.clicked.connect(lambda: self.menu_requested.emit(b.mapToGlobal(QPoint(0, b.height()))))
+            self.layout().addWidget(b, 0, Qt.AlignmentFlag.AlignVCenter)
+            self._more = b
+
+    def enterEvent(self, e):
+        if self._more is not None:
+            self._more.setVisible(True)
+        super().enterEvent(e)
+
+    def leaveEvent(self, e):
+        if self._more is not None:
+            self._more.setVisible(False)
+        super().leaveEvent(e)
+
 
 # ============================================================ istatistik kutusu
 class StatTile(QWidget):
@@ -491,10 +517,11 @@ class ProgressBar(QWidget):
 class BarChart(QWidget):
     """Gruplu dikey çubuk grafik. data: [(etiket, [değer, ...])], roles: seri renkleri."""
 
-    def __init__(self, roles=("good", "bad"), names=(), fmt=str, height=180, max_value=None, parent=None):
+    def __init__(self, roles=("good", "bad"), names=(), fmt=str, height=180, max_value=None, band=None, parent=None):
         super().__init__(parent)
         self.roles, self.names, self.fmt = roles, names, fmt
         self.max_value = max_value
+        self.band = band          # (alt, üst): hedef aralığı gölgeli şerit; altındaki çubuklar soluk
         self.data = []
         self.setMinimumHeight(height)
         self.setMouseTracking(True)
@@ -528,6 +555,12 @@ class BarChart(QWidget):
         for i in range(4):
             y = top + h * i / 3
             p.drawLine(QPointF(0, y), QPointF(self.width(), y))
+        if self.band and mx:
+            lo, hi = self.band
+            y1, y0 = top + h - h * min(hi, mx) / mx, top + h - h * min(lo, mx) / mx
+            c = QColor(qcolor("good"))
+            c.setAlpha(28)
+            p.fillRect(QRectF(0, y1, self.width(), y0 - y1), c)
         for i, (label, vals) in enumerate(self.data):
             cx = slot * i + slot / 2
             total_w = bw * k + gap * (k - 1)
@@ -537,7 +570,8 @@ class BarChart(QWidget):
                 r = QRectF(x0 + j * (bw + gap), top + h - bh, bw, bh)
                 if bh > 0:
                     p.setPen(Qt.PenStyle.NoPen)
-                    p.setBrush(qcolor(self.roles[j % k]))
+                    low = self.band is not None and v < self.band[0]
+                    p.setBrush(qcolor("text3" if low else self.roles[j % k]))
                     rad = min(4.0, bw / 2, bh / 2)
                     p.drawRoundedRect(r, rad, rad)
                 self._bars.append((QRectF(x0 + j * (bw + gap), top, bw, h), label, j, v))
@@ -866,7 +900,11 @@ class MonthCalendar(QWidget):
 # ============================================================ GitHub tarzı kareler
 class DayGrid(QWidget):
     """Son haftaların günlük kareleri (sütun = hafta, satır = Pzt…Paz). Dolu kare = o gün yapıldı.
-    Bugün ve geçmiş kareler tıklanınca day_toggled(date) yayılır; gelecek kareler soluk ve tıklanamaz."""
+    Bugün ve geçmiş kareler tıklanınca day_toggled(date) yayılır; gelecek kareler soluk ve tıklanamaz.
+    span=(geri ay, ileri ay) verilirse aralık sabittir (ör. (2, 1): son 2 ay + önümüzdeki 1 ay) ve kareler
+    genişliğe göre büyür (kare, en fazla CELL_MAX).
+    set_values({gün: 0 | 0.5 | 1}, ranges, quit): yarım = alt yarısı dolu; quit=True → 0 kırmızı (kayma),
+    değeri olmayan gün (başlangıçtan önce) boş. ranges = seriler: seri içindeki ardışık günler zincirle bağlanır."""
     day_toggled = pyqtSignal(object)
 
     CELL = 13
@@ -874,13 +912,20 @@ class DayGrid(QWidget):
     LEFT = 30
     TOP = 18
 
-    def __init__(self, weekday_labels, month_labels, max_weeks=53, role="text", parent=None):
+    CELL_MAX = 24
+
+    def __init__(self, weekday_labels, month_labels, max_weeks=53, role="text", span=None, parent=None):
         super().__init__(parent)
+        self.span = span
+        self.CW = self.CELL          # sütun genişliği (span'de genişliğe yayılır, kare yüksekliği CELL)
         self.wd_labels = weekday_labels
         self.month_labels = month_labels
         self.max_weeks = max_weeks
         self.role = role
         self.days = set()
+        self.vals = None          # None → days kümesi (eski kullanım)
+        self.ranges = []
+        self.quit = False
         self._hover = None
         self.setMouseTracking(True)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -891,24 +936,70 @@ class DayGrid(QWidget):
 
     def set_days(self, days):
         self.days = set(days)
+        self.vals = None
         self.update()
 
+    def set_values(self, vals, ranges=(), quit=False):
+        self.vals = dict(vals)
+        self.days = {d for d, v in self.vals.items() if v > 0}
+        self.ranges = list(ranges)
+        self.quit = quit
+        self.update()
+
+    def value(self, d):
+        if self.vals is None:
+            return 1.0 if d in self.days else 0.0
+        return self.vals.get(d)
+
+    def _in_range(self, d):
+        return any(a <= d <= b for a, b in self.ranges)
+
+    def _span_range(self):
+        from datetime import timedelta
+        td = day_today()
+        back, ahead = self.span
+
+        def shift(k):
+            m0 = td.year * 12 + td.month - 1 + k
+            y, m = m0 // 12, m0 % 12 + 1
+            import calendar
+            return td.replace(year=y, month=m, day=min(td.day, calendar.monthrange(y, m)[1]))
+        a, z = shift(-back), shift(ahead)
+        a -= timedelta(days=a.weekday())
+        z += timedelta(days=6 - z.weekday())
+        return a, (z - a).days // 7 + 1
+
     def weeks(self):
+        if self.span:
+            return self._span_range()[1]
         return max(1, min(self.max_weeks, (self.width() - self.LEFT + self.GAP) // (self.CELL + self.GAP)))
 
     def first_day(self):
         from datetime import timedelta
+        if self.span:
+            return self._span_range()[0]
         td = day_today()
         return td - timedelta(days=td.weekday()) - timedelta(weeks=self.weeks() - 1)
+
+    def resizeEvent(self, e):
+        super().resizeEvent(e)
+        if self.span:
+            n = self._span_range()[1]
+            cell = int(max(9, min(self.CELL_MAX, (self.width() - self.LEFT + self.GAP) / n - self.GAP)))
+            self.CW = cell
+            if cell != self.CELL:
+                self.CELL = cell
+                self.setFixedHeight(self.TOP + 7 * (self.CELL + self.GAP))
+            self.update()
 
     def _day_at(self, pos):
         from datetime import timedelta
         x, y = pos.x() - self.LEFT, pos.y() - self.TOP
-        step = self.CELL + self.GAP
+        step, xs = self.CELL + self.GAP, self.CW + self.GAP
         if x < 0 or y < 0:
             return None
-        c, r = int(x // step), int(y // step)
-        if c >= self.weeks() or r > 6 or x - c * step > self.CELL or y - r * step > self.CELL:
+        c, r = int(x // xs), int(y // step)
+        if c >= self.weeks() or r > 6 or x - c * xs > self.CW or y - r * step > self.CELL:
             return None
         return self.first_day() + timedelta(days=c * 7 + r)
 
@@ -919,7 +1010,8 @@ class DayGrid(QWidget):
             self._hover = d
             self.update()
             if d is not None:
-                state = "✓" if d in self.days else ("·" if d <= day_today() else "")
+                v = self.value(d) if d <= day_today() else None
+                state = "" if v is None else "½" if 0 < v < 1 else ("✓" if v else ("✗" if self.quit else "·"))
                 QToolTip.showText(e.globalPosition().toPoint(), f"{fmt_long_date(d)}  {state}", self)
             else:
                 QToolTip.hideText()
@@ -941,7 +1033,7 @@ class DayGrid(QWidget):
         p = QPainter(self)
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
         td = day_today()
-        step = self.CELL + self.GAP
+        step, xs = self.CELL + self.GAP, self.CW + self.GAP
         n = self.weeks()
         start = self.first_day()
         f = QFont(self.font())
@@ -960,27 +1052,62 @@ class DayGrid(QWidget):
             if c == 0 and first is None:
                 first = wk
             if first is not None:
-                x = self.LEFT + c * step
+                x = self.LEFT + c * xs
                 if x - last_x >= 30:
                     p.drawText(QRectF(x, 0, 40, self.TOP - 4), Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignBottom,
                                self.month_labels[first.month - 1])
                     last_x = x
         on = qcolor(self.role)
         off = qcolor("track")
+        bad = qcolor("bad")
+        # zincir: aynı sütunda alt alta iki seri günü arasındaki boşluğu doldur
+        link = QColor(on)
+        link.setAlphaF(0.55)
+        for c in range(n):
+            for r in range(6):
+                d = start + timedelta(days=c * 7 + r)
+                d2 = d + timedelta(days=1)
+                if d2 > td:
+                    continue
+                v1, v2 = self.value(d) or 0, self.value(d2) or 0
+                chained = (v1 > 0 and v2 > 0) or (self.ranges and self._in_range(d) and self._in_range(d2))
+                if chained and not (self.quit and (v1 == 0 or v2 == 0)):
+                    w = max(3.0, self.CW * 0.34)
+                    x = self.LEFT + c * xs + (self.CW - w) / 2
+                    p.setPen(Qt.PenStyle.NoPen)
+                    p.setBrush(link)
+                    p.drawRect(QRectF(x, self.TOP + r * step + self.CELL - 2, w, self.GAP + 4))
         for c in range(n):
             for r in range(7):
                 d = start + timedelta(days=c * 7 + r)
-                rect = QRectF(self.LEFT + c * step, self.TOP + r * step, self.CELL, self.CELL)
+                rect = QRectF(self.LEFT + c * xs, self.TOP + r * step, self.CW, self.CELL)
                 p.setPen(Qt.PenStyle.NoPen)
+                v = self.value(d) if d <= td else None
                 if d > td:
                     col = qcolor("track")
                     col.setAlphaF(0.35)
-                elif d in self.days:
+                elif v is None:
+                    col = QColor(off)
+                    col.setAlphaF(0.5)
+                elif v >= 1:
                     col = on
+                elif v > 0:
+                    col = off
+                elif self.quit:
+                    col = bad
                 else:
                     col = off
                 p.setBrush(col)
                 p.drawRoundedRect(rect, 3, 3)
+                if v is not None and 0 < v < 1 and d <= td:          # yarım: alt yarısı dolu
+                    p.save()
+                    p.setClipRect(QRectF(rect.x(), rect.y() + rect.height() / 2, rect.width(), rect.height() / 2 + 1))
+                    p.setBrush(on)
+                    p.drawRoundedRect(rect, 3, 3)
+                    p.restore()
+                elif v == 0 and self.ranges and self._in_range(d) and not self.quit:   # serideki dinlenme günü
+                    p.setBrush(link)
+                    p.drawRoundedRect(QRectF(rect.center().x() - 2, rect.center().y() - 2, 4, 4), 2, 2)
                 if d == td or d == self._hover and d <= td:
                     p.setBrush(Qt.BrushStyle.NoBrush)
                     p.setPen(QPen(qcolor("text2" if d == td else "text"), 1.2))

@@ -35,3 +35,7 @@ muscle-body/
 alphaapp/assets/body_frames.zip
 # referans ekran görüntüleri
 spor/
+
+# spor ekran görüntüleri (yalnızca referans)
+Photos-*/
+cv_for_alpha*.pdf

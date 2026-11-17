@@ -21,6 +21,19 @@ ACCENTS = {
 # Anlam renkleri (gelir/gider, hedefin altı/üstü). Mor/eflatun yok.
 GOOD = "#2ba640"
 BAD = "#ff4e45"
+# haftalık programda kutu türleri (mor yok): spor, ders, toplantı / etkinlik, yapılacak
+BLOCK_KINDS = {"sport": "#4f9d74", "lesson": "#5b8fd9", "meeting": "#d1a04a", "task": "#45a5a5"}
+
+
+def _block_kinds_qss(dark):
+    out = []
+    for k, hx in BLOCK_KINDS.items():
+        r, g, b = int(hx[1:3], 16), int(hx[3:5], 16), int(hx[5:7], 16)
+        a = "0.13" if dark else "0.10"
+        out.append(f'#Block[kind="{k}"] {{ background: rgba({r},{g},{b},{a}); border: 1px solid rgba({r},{g},{b},0.45);'
+                   f' border-left: 3px solid {hx}; border-radius: 8px; }}')
+        out.append(f'#Block[kind="{k}"]:hover {{ background: rgba({r},{g},{b},0.22); }}')
+    return chr(10).join(out)
 WARN = "#f2a33a"
 INFO = "#3ea6ff"
 
@@ -305,6 +318,24 @@ QPushButton#WishBtn {{ background: {c['chip_active_bg']}; color: {c['chip_active
 QPushButton#WishBtnOn {{ background: transparent; color: {c['text2']}; border: 1px solid {c['surface_hover']};
     border-radius: 13px; padding: 0px 10px; min-width: 0px; height: 24px; font-size: 12px; }}
 
+QPushButton#PickField {{
+    background: {c['input_bg']}; color: {c['text']}; border: 1px solid {c['input_border']}; border-radius: 8px;
+    padding: 6px 10px; min-height: 20px; text-align: left; font-size: 13px; min-width: 0px;
+}}
+QPushButton#PickField:hover {{ border: 1px solid {c['text3']}; }}
+QPushButton#PickField:focus {{ border: 1px solid #1c62b9; }}
+QPushButton#PickField:disabled, QPushButton#PickField[off="true"] {{ color: {c['text3']}; }}
+QPushButton#PickTitle {{ background: transparent; color: {c['text']}; border: none; border-radius: 8px;
+    padding: 4px 8px; font-size: 14px; font-weight: 600; min-width: 0px; text-align: left; }}
+QPushButton#PickTitle:hover {{ background: {c['surface']}; }}
+#PickPopup {{ background: {'#212121' if dark else '#ffffff'}; border: 1px solid {c['divider']}; border-radius: 12px; }}
+QPushButton#PickChip {{
+    background: {c['surface']}; color: {c['text']}; border: none; border-radius: 8px;
+    padding: 0px 8px; min-width: 38px; height: 30px; font-size: 13px;
+}}
+QPushButton#PickChip:hover {{ background: {c['surface_hover']}; }}
+QPushButton#PickChip:checked {{ background: {c['chip_active_bg']}; color: {c['chip_active_fg']}; font-weight: 600; }}
+
 QPushButton#Chip {{
     background: {c['surface']}; color: {c['text']}; border: none;
     border-radius: 8px; padding: 6px 12px; font-size: 13px; font-weight: 500;
@@ -428,7 +459,7 @@ QDialog QPushButton {{
 }}
 QDialog QPushButton:hover {{ background: {c['surface_hover']}; }}
 QDialog QPushButton#Chip {{ min-width: 0px; padding: 6px 10px; }}
-"""
+""" + _block_kinds_qss(dark)
 
 
 class ThemeManager(QObject):

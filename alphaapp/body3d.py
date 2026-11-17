@@ -412,10 +412,15 @@ class ModelView(QWidget):
         self.update()
 
     # ---------------------------------------------------------------- çizim
+    zoom = 1.0     # >1: yakın plan; focus = görüntünün ortasına gelen yükseklik (0 baş, 1 ayak)
+    focus = 0.5
+
     def _rect(self):
-        h = self.height()
+        h = self.height() * self.zoom
         w = h * self.meta["w"] / self.meta["h"]
-        return QRectF((self.width() - w) / 2, 0, w, h)
+        y = self.height() / 2 - self.focus * h
+        y = max(self.height() - h, min(0.0, y))
+        return QRectF((self.width() - w) / 2, y, w, h)
 
     def paintEvent(self, _e):
         i = self.frame_index()

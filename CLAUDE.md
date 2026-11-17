@@ -46,17 +46,34 @@ alphaapp/
   theme.py        gamma paletleri + kart/rozet stilleri · i18n.py (tr, en) + biçimler
   icons.py        Material yolları; kategori ikonları cat_education / cat_work / cat_sport takma adları (tek satırda değişir)
                   Bugün'deki ay takvimi: components.MonthCalendar + store.items_between(a, b)
-  kareler         components.DayGrid (GitHub tarzı, tıkla = store.toggle_day). Alışkanlıklar sayfası (habits.days),
-                  ders kartlarında çalışma günleri (courses.study_days); seri: store.streaks(). Form kaydı birleştirir,
+  kareler         components.DayGrid (GitHub tarzı). span=(2, 1): son 2 ay + önümüzdeki 1 ay; kareler KARE, en
+                  fazla 24 px (genişliğe yayılan büyük kareleri kullanıcı beğenmedi). set_values(vals, ranges, quit):
+                  yarım = alt yarısı dolu, seri içindeki komşu kareler zincirle bağlanır, bırakmada kayma kırmızı.
+                  Alışkanlık mantığı habits_core.py: kind build/quit (NoFap, ekran süresi: her gün temiz, slips
+                  işaretlenir), half, source "study" (sessions'tan ≥ target_h saat tam, yarısı yarım), goal (haftada
+                  ideal), week_min (ör. 3.5), gap (üst üste kaç boş gün bozar). Tıkla = hc.cycle (tam → yarım → boş).
+                  Hazır şablonlar hc.TEMPLATES (Alışkanlıklar'da çip). Başka yerler hc.state / streak_info kullanır,
+                  day_set(h.days) değil. source "workout" = antrenman girilen gün tam ("Spora git" şablonu; varsa
+                  Spor sayfasındaki seri kutusu hc.auto_source'un serisini gösterir). Bugün sayfasında
+                  "Alışkanlıklar" kartı (habits.habit_row, prefs show_habits_on_today). Haftalık programda
+                  saatsiz alışkanlıklar günde TEK kutu ("Alışkanlık 3/6", tıkla = işaretleme menüsü,
+                  schedule._habit_menu); saatliler ayrı kutu. Alışkanlık kartları iki sütun (ResponsiveRow 900).
+                  Ders çalışma kareleri Eğitim'deki ders kartlarında (courses.study_days, store.toggle_day;
+                  kronometre süresi < 1 sa → yarım kare); Alışkanlıklar'da yalnızca alışkanlıklar. Form kaydı birleştirir,
                   gün listelerini silmez. Spor'da beslenme: meals koleksiyonu + prefs goal_kcal/protein/carbs/fat,
                   sık yenen çipleri components.FlowLayout ile satıra sarılır.
-  sürüm 2         Program: her kayıt ayrı kutu (schedule.Block; important → #BlockImportant kırmızı: routine/events
+  sürüm 2         Program: iki hafta alt alta (schedule.WEEKS = 2: bu hafta + önümüzdeki hafta, cols 14 sütun; telefon
+                  sayfası tek hafta + oklar), her haftanın başında "47. hafta" (ISO). Kutu renkleri theme.BLOCK_KINDS
+                  (Block kind özelliği → #Block[kind=...]): spor yeşil, ders mavi, toplantı / etkinlik (iş, sosyal,
+                  events) sarı, görev camgöbeği; önemli kırmızı hepsini ezer. Programa yalnızca spor alışkanlıkları
+                  girer (hc.is_sport; prefs habits_in_schedule varsayılan açık). Her kayıt ayrı kutu (schedule.Block; important → #BlockImportant kırmızı: routine/events
                   "important", görev priority=high, puansız sınav, proje deadline'ı). Formda kategori = ikon düğmeleri
                   (forms.CategoryPicker, tür "cats"). prefs show_place=False → schema() "place" alanını çıkarır
                   (kayıtlı yer silinmez), programda konum yazmaz. prefs habits_in_schedule → alışkanlıklar programda
                   (habits.weekdays boşsa her gün, time isteğe bağlı; tıkla = o günü işaretle).
                   QDialog QPushButton'da min-width: 64px var; dialog içi küçük düğmelerde ez.
-  pages/goals.py  Hedefler: goals ağacı (parent, horizon, links "habits:id"/"courses:id"/"projects:id", image) +
+  pages/goals.py  Hayat (menü adı; anahtar hâlâ "goals"). Sekmeler goals.VIEWS (prefs goals_view): Vision board,
+                  Denge ve yol haritası, Bucket list, Harita, CV. Hedefler: goals ağacı (parent, horizon, links "habits:id"/"courses:id"/"projects:id", image) +
                   wheel (aylık 1-10). İki sekme: Pinterest tarzı vision board (BoardView, masonry, görsel
                   Ctrl+V / sürükle-bırak → DATA_DIR\images) ve çark + yol haritası. 9×9 ızgara ve 3B hedef ağı
                   denendi, kullanıcı beğenmedi (kaldırıldı). "Örnek hedeflerle doldur" sample=True kayıtlar ekler.
@@ -66,6 +83,15 @@ alphaapp/
                   Denge (eski "hayat çarkı"): elle puan YOK (kullanıcı istemedi), örümcek ağı grafiği de beğenilmedi.
                   balance.area_report() her alanı verilerden 0-10 puanlar (parçalar + "nereden geldi" metni),
                   history() son 6 ay; BalanceView alan kartları (puan, değişim, çizgi, parçalar) + özet kartı.
+                  Üçüncü sekme CV (pages/cv.py, cv koleksiyonu): solda şu anki CV (+ PDF → DATA_DIR\cv, prefs cv_file),
+                  sağda hayalimdeki CV; ikisi de gerçek CV sayfası gibi çizilir (cv.CvSheet: fotoğraf prefs cv_photo,
+                  section "profile" = ad / bilgi satırı / iletişim / Hakkımda, bölüm başlığı + çizgi, detail satırları
+                  madde işareti). Hayal sayfasında şu anki maddeler soluk (ayrıntısız) görünür; aynı bölümde aynı
+                  kurumlu hayal maddesi varsa gizlenir. Sağ tık > Gerçekleşti (realize) / Hedefe çevir (to_goal,
+                  başlık "kurum — unvan"). Kullanıcının CV'si cv_for_alpha.pdf (gitignore) → gerçek veriye bir kez
+                  içe alındı (src "cv_pdf"). Bölüm "experience" ekranda "İş tecrübeleri"; gönüllü işler "volunteer".
+                  Şu anki maddede hide_dream=True → hayal sayfasında hiç çıkmaz (sağ tık > Hayalimdeki CV'de gösterme).
+                  Telefona gitmez.
   görev → sınav   Görev formunda (yeni kayıt) kategori Eğitim iken "Sınav / teslim" satırı (FormDialog._exam_row):
                   açılırsa kayıt exams'e gider (ders + tür forms.guess_exam ile başlıktan tahmin; time/end/note da
                   sınava yazılır). Eğitim görevlerinin sağ tık menüsünde "Sınavlara taşı" (pages.task_to_exam).
@@ -80,6 +106,11 @@ alphaapp/
                   (i18n.t nav_/cat_ anahtarlarında da kullanılır → kategori adı her yerde değişir), custom_cats
                   [{id "c_xxxxxx", name, icon}] → pages/category.CategoryPage (window._ensure_pages). Varsayılan = DEFAULT.
                   Kategori silinince kayıtları personal'a geçer. Ctrl+1..9 menü sırasına göre.
+                  Sadeleştirme: navmenu.SectionsDialog (hazır çipler Öğrenci / Spor ve sağlık / Hepsi + bölüm
+                  anahtarları; apply_sections → nav_layout gizli bayrakları, kayıt silinmez). İlk açılışta yalnızca
+                  hiç veri yoksa (should_onboard, prefs sections_done); sonra Seçenekler > Genel > Bölümler.
+                  Bugün / Program hep açık (ALWAYS). Row'da menüsü olan satırlara fareyle gelince ⋮ düğmesi
+                  (receivers(menu_requested) > 0 ise kurulur).
   pages/projects.py Projeler: projects (category work/education, start, due, logo, status) + task.project.
                   İlerleme store.project_progress (görev varsa biten oranı). Timeline (Gantt), Logo (harf yol olarak
                   çizilir: Segoe UI Variable kalını pixmap'te bozuk çıkıyor). İş / Eğitim sayfalarında project_row.
@@ -95,17 +126,31 @@ alphaapp/
                   saat, rafta DVD gibi kutu). Job = thread + sinyal. Goodreads / Letterboxd kazınmaz (yalnızca bağlantı).
                   pages/library.py: raf (pages/shelf.py: Shelf sırtlar + fareyle dışarı çıkma, MediaViewer kitap açılır /
                   DVD-CD diski çıkar), SearchDialog → edit_item("media", preset). Bugün'de "Şu an" kartı.
-                  Telefon sayfasına GİTMEZ (smoke denetler).
+                  Kütüphane yalnızca medya rafı (3.1'de harita + bucket list Hayat sayfasına taşındı).
+                  Harita = pages/places.py (places koleksiyonu; Türkiye 81 il / dünya; tıkla → Gittim / Gitmek
+                  istiyorum; arama il / ülke / şehir; il ve ülke kendi içindeki şehirden de boyanır). Veri
+                  assets/geo.json.gz (Natural Earth, kamu malı) ← packaging/make_geo.py.
+                  Bucket list = pages/bucket.py (bucket koleksiyonu), goals.BoardView'in alt sınıfı (color_of /
+                  icon_of / meta_of / add_texts kancaları, menu_at sinyali).
+                  Kütüphane / harita / bucket telefon sayfasına GİTMEZ (smoke denetler).
   sürükle-bırak   Row.drag_data "coll:id" + Card.accept_drop(colls, fn) (components.DRAG_MIME): görev → Yaklaşan
                   sınavlar / ders kartı (sınav), proje kartı (projeye ata).
   spor (ağırlık)  fitness.py: hareket kataloğu (EXERCISES → ana/yardımcı kaslar, _GUESS ile addan tahmin), e1RM
-                  (Epley), kas yükü (ana 1, yardımcı 0.5 set), rekorlar. workouts.exercises [{name, sets [{r, w}]}],
+                  (Epley), kas yükü (fitness.weights_of: ana 1, yardımcı 0.5; ACTIVATION'daki 17 hareket kullanıcının
+                  uygulamasının kas haritasından: çok yüksek 1 / yüksek .75 / sinerjist .5 / biraz .35 / düşük .2),
+                  rekorlar. workouts.exercises [{name, sets [{r, w}]}],
                   templates (program: name, exercises [{name, sets, reps, rir}]), body (kilo/ölçü) + prefs goal_weight.
                   pages/sport_ui.py: WorkoutDialog (programdan başlat → geçen seferki kilolar dolu), TemplateDialog,
                   LineChart, Templates/Records/Body kartları. lifts = tek başına girilen rekor (PR), history() okur.
-                  Giriş: pages/sport_body.HeroCard — 3B vücut + kipler: Gelişimim (fitness.development: 1RM /
-                  vücut ağırlığı / STANDARDS, seviye 0-4), Son 7 gün, Programlarım, Popüler (fitness.POPULAR, 10
-                  program, haftalık set). body3d.py: ModelView = önceden çizilmiş 72 kare (assets/body_frames.zip,
+                  En üst: pages/sport_top (BodyStatsCard: kilo / yağ / yağsız kütle + grafikler; DevPreviewCard:
+                  ModelView zoom/focus ile yakın plan, development renkleri; MaxDialog → lifts; FatDialog: mezura
+                  ölçüleri → fitness.navy_bodyfat (ABD Donanması; prefs body_height / body_sex), fat_of yağ girilmemiş
+                  kayıtta boyun + bel (+ kalça) varsa hesaplar). Tıkla → ayrıntıya
+                  kaydırır (SportPage.scroll_to). Altında: pages/sport_body.HeroCard — 3B vücut + kipler: Gelişimim (fitness.development: 1RM /
+                  vücut ağırlığı / STANDARDS, seviye 0-4), Son 7 gün, Programlarım, Hazır programlar (fitness.POPULAR,
+                  8 program kullanıcının seçimi: kendi PPL + Power'ı (Pzt/Çar/Cum/Paz), PPL, ULPPL, Güray's
+                  Hypertrophy (Boostcamp 1. hafta), 5×5, 3×5, Full Body ABC / ABAB; günler _week() ile haftalığa
+                  toplanır, split metni altta). body3d.py: ModelView = önceden çizilmiş 72 kare (assets/body_frames.zip,
                   piksel = 1 + kas×13 + gölge, boyama = renk tablosu, sürükle = döndür); paket yoksa Body3D
                   (elipsoidlerden basit model, CI'da bu). Paket packaging/make_body.py ile muscle-body/ OBJ'sinden
                   üretilir (numpy + Pillow); model lisansı belirsiz → ikisi de .gitignore'da, depoya girmez.
@@ -129,6 +174,11 @@ alphaapp/
                   2.0: dünün özeti (StatTile'lar), ilerleme çubuğu, 1. adımda 1-5/Del/↑↓/Enter kısayolları (QShortcut,
                   yalnızca adım 0'da etkin — yazı alanları yutulmasın), 2. adımda timeline.DayTimeline (boşluğa tıkla →
                   saatsiz bir işi o saate koy). "plan" hiçbir zaman last_page olmaz; prefs değişince Bugün'ü mark_dirty() ile yenile.
+  pickers.py      DateButton / TimeButton: formlarda (OptDate / OptTime), spor arası, antrenman, uyku. Tıkla → açılır
+                  takvim (MonthCalendar; başlık → 12 ay → 12'şer yıl; üstte "17.11.2026" yazıp Enter; Bugün / Yarın /
+                  Gelecek hafta) ya da saat (00-23) + dakika (5 dk) ızgarası,
+                  yazarak giriş ("0830", "9.30"), Şimdi. Tekerlek / ↑↓: ±1 gün, ±15 dk. İsteğe bağlı alan kapalıyken
+                  soluk ama tıklanabilir; seçim yapınca anahtar açılır (picked sinyali). Kapanan açılır pencere silinir.
   desk_widget.py  masaüstü widget'ı (Tool + çerçevesiz + saydam). "bottom" kipinde WM_WINDOWPOSCHANGING ile hep
                   en altta tutulur; "top" kipinde her zaman üstte. Yer/saydamlık/bölümler prefs'te (desk_*).
 ```
@@ -152,6 +202,8 @@ Koleksiyonlar `store.py` başındaki belge metninde. Kategori: education, work, 
 ## Sürüm ve yayın
 - Repo: https://github.com/yigitozsoy/alpha_dashboard (3.0'dan beri GİZLİ, açık kaynak değil; LICENSE = tüm hakları saklıdır). Sürüm tek yerde: `alphaapp/__init__.py`.
 - `packaging\build.ps1` → `build\installer\alpha-setup-<sürüm>.exe` + `alpha-portable-<sürüm>.zip` (Inno Setup 6).
+  alpha.spec DROP listesi paketi hafifletir (opengl32sw, Qt OpenSSL arka ucu + libssl/libcrypto-3-x64, tr/en dışı Qt
+  çevirileri, kullanılmayan görüntü / platform eklentileri): kurulum ~23 MB. TLS için web.WebSync Schannel seçer.
   Sihirbaz gamma ile aynı: `WizardStyle=modern dynamic windows11 hidebevels` (Inno 6.7+), görseller
   make_meta.py'de logodan üretilir (build\wizard, Pillow gerekir; CI pip satırında var), lisans sayfası yok.
 - Yeni sürüm: sürümü artır → commit → push → `git tag vX.Y.Z` → `git push origin vX.Y.Z`; GitHub Actions

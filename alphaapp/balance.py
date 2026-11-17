@@ -113,7 +113,8 @@ def area_report(store, end=None, window=WINDOW):
             continue
         span = (end - start).days + 1
         slots += span
-        filled += sum(1 for d in day_set(h.get("days")) if start <= d <= end)
+        from . import habits_core as hc
+        filled += sum(v for d, v in hc.values(h, end, store, a=start).items() if start <= d <= end)
     if slots:
         r = filled / slots
         parts["growth"].append((t("bal_habits", p=int(round(r * 100))), _clip(r / 0.8)))

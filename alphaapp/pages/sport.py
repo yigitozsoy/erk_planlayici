@@ -2,14 +2,15 @@
 from collections import Counter
 from datetime import timedelta
 
-from PyQt6.QtCore import Qt, QDate
+from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (QHBoxLayout, QVBoxLayout, QLabel, QWidget, QSpinBox, QPushButton, QDialog,
-                             QDateEdit, QLineEdit, QGridLayout)
+                             QLineEdit, QGridLayout)
 
 from ..config import day_today
 from ..components import (Page, Card, Row, StatTile, TileGrid, BarChart, HBars, WeekStrip, Ring,
                           FlowLayout)
 from ..widgets import IconButton
+from ..pickers import DateButton
 from ..config import prefs
 from ..forms import edit_item, bind_row, item_menu
 from ..i18n import t, fmt_day, fmt_day_month, fmt_num, WEEKDAYS_SHORT
@@ -17,6 +18,7 @@ from ..store import parse_date, num, week_start
 from . import task_row
 from .sport_ui import TemplatesCard, RecordsCard, BodyCard, open_workout, workout_sub
 from .sport_body import HeroCard
+from .sport_top import BodyStatsCard, DevPreviewCard
 
 
 class SportPage(Page):
@@ -26,6 +28,18 @@ class SportPage(Page):
         self.action(t("add_workout"), lambda: open_workout(win), primary=True, icon="add")
 
         # giriş: döndürülebilir vücut, kaslar gelişime / programa göre kızarır
+        # en üst: Vücudum (kilo / yağ grafiği) + Gelişimim (yakın plan model); tıkla → aşağıdaki ayrıntı
+        # solda Vücudum + bu hafta (çember), sağda Gelişimim: sayfa açılınca ilk görünen yer
+        self.c_stats = BodyStatsCard(win)
+        self.c_dev = DevPreviewCard(win)
+        self.left_col = QWidget()
+        lc = QVBoxLayout(self.left_col)
+        lc.setContentsMargins(0, 0, 0, 0)
+        lc.setSpacing(16)
+        lc.addWidget(self.c_stats)
+        self.row(self.left_col, self.c_dev, stretches=[1, 1])
+        self.c_stats.opened.connect(lambda: self.scroll_to(self.c_body))
+        self.c_dev.opened.connect(self._open_dev)
         self.c_hero = HeroCard(win)
         self.add(self.c_hero)
 
@@ -73,7 +87,8 @@ class SportPage(Page):
         self.c_chart = Card(t("last_weeks"))
         self.chart = BarChart(roles=("text",), names=(t("days"),), fmt=lambda v: str(int(v)), height=150, max_value=7)
         self.c_chart.layout().addWidget(self.chart)
-        self.row(self.c_week, self.c_chart)
+        lc.addWidget(self.c_week)
+        self.add(self.c_chart)
 
         # ağırlık antrenmanı: rekorlar + vücut (programlar günlüğün yanında)
         self.c_tpl = TemplatesCard(win)
@@ -226,9 +241,7 @@ class SportPage(Page):
         for i, (key, d0) in enumerate((("f_from", br[0] if br else td), ("f_until", br[1] if br else td + timedelta(days=6)))):
             lbl = QLabel(t(key))
             lbl.setObjectName("FieldLabel")
-            de = QDateEdit(QDate(d0.year, d0.month, d0.day))
-            de.setCalendarPopup(True)
-            de.setDisplayFormat("d MMMM yyyy, dddd")
+            de = DateButton(d0)
             g.addWidget(lbl, i, 0)
             g.addWidget(de, i, 1)
             edits.append(de)
@@ -245,7 +258,7 @@ class SportPage(Page):
             b = QPushButton(t("n_days_short", n=n))
             b.setObjectName("Chip")
             b.setFocusPolicy(Qt.FocusPolicy.NoFocus)
-            b.clicked.connect(lambda _=False, n=n: edits[1].setDate(edits[0].date().addDays(n - 1)))
+            b.clicked.connect(lambda _=False, n=n: edits[1].set_value(edits[0].value() + timedelta(days=n - 1)))
             quick.addWidget(b)
         quick.addStretch(1)
         v.addLayout(quick)
@@ -275,12 +288,21 @@ class SportPage(Page):
                 prefs.set("sport_break", {"from": br[0].isoformat(), "until": (td - timedelta(days=1)).isoformat(),
                                           "note": (prefs.get("sport_break") or {}).get("note", "")})
         else:
-            a, z = (e.date().toPyDate() for e in edits)
+            a, z = (e.value() for e in edits)
             if z < a:
                 a, z = z, a
             prefs.set("sport_break", {"from": a.isoformat(), "until": z.isoformat(), "note": note.text().strip()})
         self.refresh()
         self.win.pages["today"].mark_dirty()
+
+    def scroll_to(self, w):
+        """Ayrıntı kartını sayfanın üstüne getirir."""
+        y = w.mapTo(self.content, w.rect().topLeft()).y()
+        self.verticalScrollBar().setValue(max(0, y - 12))
+
+    def _open_dev(self):
+        self.c_hero._set_mode("dev")
+        self.scroll_to(self.c_hero)
 
     def _goal(self, v):
         prefs.set("sport_weekly_goal", int(v))
@@ -343,7 +365,15 @@ class SportPage(Page):
                 k += 1
             else:
                 break
-        self.t_streak.set(str(streak), t("weeks"), "good" if streak else None)
+        from .. import habits_core as hc
+        gym = hc.auto_source(s)
+        if gym is not None:                 # "Spora git" alışkanlığı varsa seri onun kuralıyla (gün)
+            self.t_streak.lbl.setText(t("habit_streak_tile"))
+            self.t_streak.set(str(hc.streak_info(gym, td, s)["cur"]), t("days") + " · " + gym.get("name", ""),
+                              "good" if hc.streak_info(gym, td, s)["cur"] else None)
+        else:
+            self.t_streak.lbl.setText(t("streak"))
+            self.t_streak.set(str(streak), t("weeks"), "good" if streak else None)
 
         data = []
         for i in range(7, -1, -1):
@@ -382,7 +412,7 @@ class SportPage(Page):
         self.c_log.set_sub(t("n_total", n=len(ws_all)) if ws_all else "")
 
         self._fill_food()
-        for c in (self.c_hero, self.c_tpl, self.c_pr, self.c_body):
+        for c in (self.c_stats, self.c_dev, self.c_hero, self.c_tpl, self.c_pr, self.c_body):
             c.refresh()
 
         self.c_plan.clear()

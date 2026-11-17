@@ -342,3 +342,132 @@ def move_items(store, cat, to):
         for x in store.all(coll):
             if x.get("category") == cat:
                 store.update(coll, x["id"], category=to)
+
+
+# ============================================================ bölüm seçimi (ilk açılış + Seçenekler)
+ALWAYS = ("today", "schedule")          # her zaman açık
+SECTIONS = ("habits", "goals", "education", "work", "projects", "sport", "mind", "social", "finance", "library",
+            "notes")
+PRESETS = {
+    "student": ("habits", "goals", "education", "projects", "notes"),
+    "fitness": ("habits", "sport", "mind"),
+    "all": SECTIONS,
+}
+
+
+def shown_sections():
+    return {k for k, h in layout() if k in SECTIONS and not h}
+
+
+def apply_sections(on):
+    """Seçilen bölümler görünür, ötekiler gizli; sıra ve ayırıcılar korunur."""
+    on = set(on) | set(ALWAYS)
+    prefs.set("nav_layout", [{"k": k, "h": (h if k == "-" or k not in SECTIONS + ALWAYS else k not in on)}
+                             for k, h in layout()])
+    prefs.set("sections_done", True)
+
+
+def should_onboard(store):
+    """İlk açılış: bölüm seçimi hiç yapılmadı ve henüz hiç kayıt yok."""
+    return not prefs.get("sections_done") and not any(store.all(c) for c in store.data)
+
+
+class SectionsDialog(ThemedDialog):
+    """Hangi bölümleri kullanacaksın? Hazır seçimler + kart kart aç / kapat."""
+
+    def __init__(self, win, first=False):
+        super().__init__(win, t("sec_title"))
+        self.win = win
+        self.resize(720, 0)
+        v = QVBoxLayout(self)
+        v.setContentsMargins(24, 20, 24, 16)
+        v.setSpacing(10)
+        h = QLabel(t("sec_title"))
+        h.setStyleSheet("font-size: 18px; font-weight: 700;")
+        v.addWidget(h)
+        sub = QLabel(t("sec_sub_first") if first else t("sec_sub"))
+        sub.setObjectName("RowSub")
+        sub.setWordWrap(True)
+        v.addWidget(sub)
+        pr = QHBoxLayout()
+        pr.setSpacing(6)
+        for k in PRESETS:
+            b = QPushButton(t("sec_p_" + k))
+            b.setObjectName("Chip")
+            b.setStyleSheet("min-width: 0px; padding: 4px 12px;")
+            b.setCursor(Qt.CursorShape.PointingHandCursor)
+            b.clicked.connect(lambda _=False, k=k: self._preset(k))
+            pr.addWidget(b)
+        pr.addStretch(1)
+        v.addLayout(pr)
+        from PyQt6.QtWidgets import QGridLayout
+        g = QGridLayout()
+        g.setHorizontalSpacing(8)
+        g.setVerticalSpacing(6)
+        self.sw = {}
+        cur = shown_sections() if not first else set(SECTIONS)
+        for i, k in enumerate(SECTIONS):
+            box = QFrame()
+            box.setObjectName("CardToday")
+            hl = QHBoxLayout(box)
+            hl.setContentsMargins(10, 6, 10, 6)
+            hl.setSpacing(10)
+            ic = QLabel()
+            ic.setFixedSize(24, 24)
+            theme.bind(ic, lambda l, n=icon(k): l.setPixmap(icons.pixmap(n, color("text"), 20)))
+            hl.addWidget(ic)
+            tv = QVBoxLayout()
+            tv.setSpacing(0)
+            a = QLabel(label(k))
+            a.setObjectName("RowTitle")
+            d = QLabel(t("sec_d_" + k))
+            d.setObjectName("RowSub")
+            d.setWordWrap(True)
+            tv.addWidget(a)
+            tv.addWidget(d)
+            hl.addLayout(tv, 1)
+            sw = ToggleSwitch(k in cur)
+            hl.addWidget(sw)
+            self.sw[k] = sw
+            g.addWidget(box, i // 2, i % 2)
+        v.addLayout(g)
+        note = QLabel(t("sec_note"))
+        note.setObjectName("RowSub")
+        note.setWordWrap(True)
+        v.addWidget(note)
+        foot = QHBoxLayout()
+        foot.addStretch(1)
+        if not first:
+            c = QPushButton(t("cancel"))
+            c.setObjectName("Flat")
+            c.clicked.connect(self.reject)
+            foot.addWidget(c)
+        ok = QPushButton(t("sec_ok"))
+        ok.setObjectName("Primary")
+        ok.setDefault(True)
+        ok.clicked.connect(self._save)
+        foot.addWidget(ok)
+        v.addLayout(foot)
+
+    def _preset(self, k):
+        for key, sw in self.sw.items():
+            sw.setChecked(key in PRESETS[k])
+
+    def selected(self):
+        return {k for k, sw in self.sw.items() if sw.isChecked()}
+
+    def _save(self):
+        apply_sections(self.selected())
+        self.accept()
+
+
+def open_sections(win, first=False):
+    d = SectionsDialog(win, first)
+    if d.exec():
+        win.nav.rebuild()
+        win.nav.set_current(getattr(win, "current", "today"))
+        win.toast(t("nav_saved"))
+        return True
+    if first:
+        prefs.set("sections_done", True)
+    return False

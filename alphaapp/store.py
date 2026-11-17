@@ -33,6 +33,11 @@ Koleksiyonlar (her kayıt bir dict, "id" alanı otomatik):
                (hesap: grades.py; dersler: letter gerçek, guess ihtimal, target hedef harf, retake)
   media        kütüphane      type, title, creator, year, cover, genres, status, rating, progress, total, started,
                finished, link, links, source, note (library.py; telefon sayfasına gitmez)
+  cv           özgeçmiş       side (now | dream), section, title, org, when, detail, note, done, goal, now_id
+               (pages/cv.py; Hedefler > CV sekmesi; telefona gitmez)
+  bucket       bucket list    title, category, image, year, place, link, note, done, done_date (pages/bucket.py)
+  places       harita         kind (province | country | city), key (plaka / iso3 / şehir adı), name, iso, lon, lat,
+               status (been | want), date, note (pages/places.py; Kütüphane > Harita; telefona gitmez)
   wishlist     alınacaklar    name, price, category, link, bought, bought_at, note, source ("notion" = içe alındı)
   wheel        hayat çarkı   month (YYYY-MM), scores {hayat alanı: 1-10}, sample
 """
@@ -52,7 +57,7 @@ from .config import DATA_FILE, BACKUP_DIR
 COLLECTIONS = ("tasks", "routine", "courses", "exams", "workouts", "projects", "events", "birthdays",
                "transactions", "debts", "investments", "notes", "days", "habits", "meals", "accounts",
                "recurring", "goals", "wheel", "transcript", "media", "templates", "body", "lifts",
-               "mood", "sleep", "sessions", "wishlist")
+               "mood", "sleep", "sessions", "wishlist", "cv", "bucket", "places")
 
 CATEGORIES = ("education", "work", "sport", "social", "finance", "personal")
 

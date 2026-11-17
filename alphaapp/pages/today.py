@@ -9,7 +9,7 @@ from ..components import Page, Card, Row, WeekStrip, Ring, MonthCalendar
 from ..widgets import IconButton
 from ..config import prefs
 from ..forms import edit_item, bind_row
-from ..i18n import t, fmt_day_month, fmt_long_date, fmt_money, fmt_month, WEEKDAYS_SHORT
+from ..i18n import t, fmt_day_month, fmt_long_date, fmt_money, fmt_month, fmt_num, WEEKDAYS_SHORT
 from ..store import parse_date, week_start
 from . import task_row, deadline_row, routine_row, time_lead, QuickTask, CAT_ICON, KIND_ICON
 
@@ -74,8 +74,10 @@ class TodayPage(Page):
         self.row(self.c_prog, self.c_todo, self.c_cal, stretches=[4, 5, 4])
 
         self.c_dead = Card(t("upcoming"))
+        self.c_habits = Card(t("today_habits"), add_tip=t("add_habit"))
+        self.c_habits.add_clicked.connect(lambda: edit_item(win, "habits"))
         self.c_week = Card(t("week_summary"))
-        self.row(self.c_dead, self.c_week, stretches=[3, 2])
+        self.row(self.c_dead, self.c_habits, self.c_week, stretches=[3, 3, 2])
 
         from .library import now_card
         self.c_now = now_card(win)          # kütüphane: şu an okunan / izlenen (boşsa gizli)
@@ -294,6 +296,21 @@ class TodayPage(Page):
                     badges=[(str(below), "warn")] if below else [])
             r.clicked.connect(lambda: win.show_page("education"))
             self.c_week.add(r)
+
+        # --- bugünün alışkanlıkları (işaretle; tamamı Alışkanlıklar'da)
+        from .habits import habit_row
+        from .. import habits_core as hc
+        self.c_habits.clear()
+        habits = sorted(s.all("habits"), key=lambda h: (h.get("created") or "", h.get("name") or ""))
+        tot = 0.0
+        for h in habits:
+            tot += hc.state(h, td, s) or 0
+            self.c_habits.add(habit_row(win, s, h, td, show_cat=False))
+        if not habits:
+            self.c_habits.empty(t("no_habits"))
+        self.c_habits.set_sub(t("habits_today_sub", d=fmt_num(tot, 1) if tot % 1 else int(tot), n=len(habits))
+                              if habits else "")
+        self.c_habits.setVisible(bool(prefs.get("show_habits_on_today", True)))
 
         # --- bu ayın takvimi
         self._fill_cal()

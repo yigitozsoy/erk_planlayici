@@ -82,6 +82,38 @@ EXERCISES = {
     "Hanging Leg Raise": (("abs",), ("obliques",)),
     "Plank": (("abs",), ("obliques",)),
     "Russian Twist": (("obliques",), ("abs",)),
+    "Rope Pushdown": (("triceps",), ()),
+    "Cable Face Pull": (("rear_delts",), ("side_delts", "traps", "upper_back")),
+    "Single Arm High Row": (("lats", "upper_back"), ("rear_delts", "biceps")),
+    "Incline Dumbbell Curl": (("biceps",), ("forearms",)),
+}
+
+# Kullanıcının uygulamasındaki kas haritalarından (spor ekran görüntüleri, 2026-11): hareket → {kas: ağırlık}.
+# Renk → ağırlık: kusursuz / çok yüksek 1 · yüksek 0.75 · sinerjist 0.5 · biraz 0.35 · düşük 0.2.
+# Burada olan hareketlerde kas yükü bu ağırlıklarla hesaplanır (ana kas ≥ 0.75, yardımcı 0.35-0.5).
+_P, _H, _S, _SO, _L = 1.0, 0.75, 0.5, 0.35, 0.2
+ACTIVATION = {
+    "Dumbbell Incline Chest Press": {"chest": _P, "front_delts": _P, "side_delts": _S, "triceps": _S,
+                                     "forearms": _L},
+    "Cable Fly": {"chest": _P, "front_delts": _S, "biceps": _L, "side_delts": _L},
+    "Chest Press Machine": {"chest": _P, "front_delts": _H, "triceps": _H, "side_delts": _L},
+    "Dumbbell Lateral Raise": {"side_delts": _P, "front_delts": _S, "rear_delts": _S, "traps": _L},
+    "Rope Pushdown": {"triceps": _P, "forearms": _L},
+    "Triceps Pushdown": {"triceps": _P, "forearms": _L, "abs": _L},
+    "Cable Face Pull": {"rear_delts": _P, "side_delts": _H, "traps": _SO, "upper_back": _SO},
+    "Face Pull": {"rear_delts": _P, "side_delts": _H, "traps": _SO, "upper_back": _SO},
+    "Lat Pulldown Wide Grip": {"lats": _P, "upper_back": _H, "traps": _S, "rear_delts": _S, "biceps": _SO,
+                               "forearms": _SO, "chest": _L},
+    "Chest Supported Machine Row": {"lats": _P, "upper_back": _P, "traps": _P, "biceps": _S, "forearms": _S,
+                                    "rear_delts": _S, "triceps": _L},
+    "Cable Reverse Fly": {"rear_delts": _P, "upper_back": _S, "side_delts": _SO, "traps": _L, "triceps": _L},
+    "EZ Bar Curl": {"biceps": _P, "forearms": _SO},
+    "Seated Cable Row": {"lats": _P, "upper_back": _P, "traps": _H, "biceps": _S, "forearms": _S,
+                         "rear_delts": _S, "lower_back": _SO, "triceps": _L},
+    "Leg Press": {"quads": _P, "adductors": _P, "glutes": _S, "calves": _SO, "hamstrings": _L},
+    "Leg Extension": {"quads": _P, "adductors": _SO},
+    "Seated Leg Curl": {"hamstrings": _P, "calves": _SO, "adductors": _L, "lower_back": _L},
+    "Seated Calf Raise": {"calves": _H},
 }
 # katalogda olmayan adlar için anahtar kelime tahmini (sıra önemli)
 _GUESS = (("calf", ("calves",)), ("leg curl", ("hamstrings",)), ("leg extension", ("quads",)),
@@ -96,8 +128,31 @@ _GUESS = (("calf", ("calves",)), ("leg curl", ("hamstrings",)), ("leg extension"
           ("crunch", ("abs",)), ("plank", ("abs",)), ("twist", ("obliques",)), ("wrist", ("forearms",)))
 
 
+def _activation(name):
+    key = (name or "").strip().casefold()
+    for k, v in ACTIVATION.items():
+        if k.casefold() == key:
+            return v
+    return None
+
+
+def weights_of(name):
+    """{kas: ağırlık} — haritası olan hareketlerde ACTIVATION, ötekilerde ana 1 / yardımcı 0.5."""
+    act = _activation(name)
+    if act is not None:
+        return dict(act)
+    prim, sec = muscles_of(name)
+    out = {m: 0.5 for m in sec}
+    out.update({m: 1.0 for m in prim})
+    return out
+
+
 def muscles_of(name):
     """(ana, yardımcı) kas listesi; katalogda yoksa addaki kelimelerden tahmin."""
+    act = _activation(name)
+    if act is not None:
+        order = sorted(act, key=lambda m: -act[m])
+        return (tuple(m for m in order if act[m] >= 0.75), tuple(m for m in order if 0.35 <= act[m] < 0.75))
     key = (name or "").strip()
     for k, v in EXERCISES.items():
         if k.casefold() == key.casefold():
@@ -207,16 +262,13 @@ def logged_exercises(store):
 
 
 def muscle_load(exercises, sets_key="sets"):
-    """Kas → set sayısı (ana kas 1, yardımcı 0.5). exercises: kayıt ya da şablon hareketleri."""
+    """Kas → set sayısı (weights_of: ana kas 1, yardımcı 0.5 ya da haritadaki ağırlık)."""
     load = defaultdict(float)
     for e in exercises:
         n = e.get(sets_key)
         n = len(valid_sets(e)) if isinstance(n, list) else int(num(n))
-        prim, sec = muscles_of(e.get("name"))
-        for m in prim:
-            load[m] += n
-        for m in sec:
-            load[m] += n * 0.5
+        for m, w in weights_of(e.get("name")).items():
+            load[m] += n * w
     return dict(load)
 
 
@@ -290,6 +342,43 @@ def body_weight(store):
     return num(rows[-1]["weight"]) if rows else None
 
 
+def navy_bodyfat(sex, height, neck, waist, hip=None):
+    """ABD Donanması çevre yöntemi (cm) → yağ oranı % ya da None (eksik / tutarsız ölçü).
+    Erkek: boyun + bel; kadın: boyun + bel + kalça. Bel göbek hizasında, boyun gırtlağın altında ölçülür."""
+    import math
+    try:
+        h, n, w = float(height or 0), float(neck or 0), float(waist or 0)
+        if h <= 0 or n <= 0 or w <= 0:
+            return None
+        if sex == "f":
+            x = w + float(hip or 0) - n
+            if not hip or x <= 0:
+                return None
+            v = 495 / (1.29579 - 0.35004 * math.log10(x) + 0.22100 * math.log10(h)) - 450
+        else:
+            if w - n <= 0:
+                return None
+            v = 495 / (1.0324 - 0.19077 * math.log10(w - n) + 0.15456 * math.log10(h)) - 450
+    except (TypeError, ValueError, ZeroDivisionError):
+        return None
+    return round(v, 1) if 2 <= v <= 60 else None
+
+
+def fat_of(b):
+    """Kayıttaki yağ oranı; yoksa boyun / bel (/ kalça) ölçülerinden (prefs body_height, body_sex)."""
+    from .config import prefs
+    if num(b.get("fat")) > 0:
+        return num(b.get("fat"))
+    return navy_bodyfat(prefs.get("body_sex", "m"), prefs.get("body_height"), b.get("neck"), b.get("waist"),
+                        b.get("hip"))
+
+
+def fat_class(sex, v):
+    """0 sporcu · 1 fit · 2 normal · 3 yüksek (ACE aralıkları)."""
+    lim = (13, 17, 24) if sex != "f" else (20, 24, 31)
+    return sum(1 for x in lim if v > x)
+
+
 def level_of(q):
     return sum(1 for x in LEVELS if q >= x)
 
@@ -319,71 +408,89 @@ def dev_heat(q):
     return max(0.0, min(1.0, q / LEVELS[-1]))
 
 
-# ---------------------------------------------------------------- en yaygın 10 program (haftalık toplam set)
-def _p(key, name, days, ex):
-    return {"key": key, "name": name, "days": days,
+# ---------------------------------------------------------------- programlar (haftalık toplam set)
+def _p(key, name, days, ex, split=""):
+    return {"key": key, "name": name, "days": days, "split": split,
             "exercises": [{"name": n, "sets": s, "reps": r} for n, s, r in ex]}
 
 
+def _week(*days):
+    """Günler [(hareket, set, tekrar)] → haftalık toplam (aynı hareket birleşir, ilk tekrar yazısı kalır)."""
+    out = {}
+    for day in days:
+        for n, st, r in day:
+            out[n] = (n, out[n][1] + st, out[n][2]) if n in out else (n, st, r)
+    return list(out.values())
+
+
+# kullanıcının kendi programı (ekran görüntülerinden): Pzt itiş, Çar çekiş, Cum bacak, Paz güç + bacak
+_MY_PUSH = [("Dumbbell Incline Chest Press", 3, "10"), ("Cable Fly", 3, "10"), ("Chest Press Machine", 3, "10"),
+            ("Dumbbell Lateral Raise", 3, "10"), ("Rope Pushdown", 3, "10"), ("Triceps Pushdown", 3, "8")]
+_MY_PULL = [("Cable Face Pull", 3, "10"), ("Lat Pulldown Wide Grip", 3, "8"), ("Chest Supported Machine Row", 3, "10"),
+            ("Cable Reverse Fly", 3, "10"), ("EZ Bar Curl", 3, "10"), ("Seated Cable Row", 3, "10")]
+_MY_LEGS = [("Leg Press", 4, "8"), ("Leg Extension", 3, "10"), ("Seated Leg Curl", 3, "10"),
+            ("Seated Calf Raise", 3, "10")]
+_MY_POWER = [("Bench Press", 3, "5"), ("Chest Supported Machine Row", 3, "10"), ("EZ Bar Curl", 3, "10"),
+             ("Leg Extension", 3, "10"), ("Seated Leg Curl", 3, "10"), ("Seated Calf Raise", 3, "10"),
+             ("Dumbbell Lateral Raise", 3, "10"), ("Cable Face Pull", 3, "10")]
+# Güray's Hypertrophy (Boostcamp, 1. hafta)
+_G1 = [("Bench Press", 4, "6-8"), ("Dumbbell Incline Chest Press", 4, "6-8"), ("Cable Fly", 3, "12-15"),
+       ("Barbell Overhead Press", 4, "8-10"), ("Dumbbell Lateral Raise", 4, "12-15"), ("Reverse Pec Deck", 3, "12-15"),
+       ("Triceps Pushdown", 4, "10-12")]
+_G2 = [("Lat Pulldown", 4, "8-10"), ("Barbell Row", 4, "8-10"), ("Seated Cable Row", 3, "12-15"),
+       ("Single Arm High Row", 3, "12-15"), ("Pull Up", 1, "AMRAP"), ("Barbell Curl", 4, "8-10"),
+       ("Dumbbell Curl", 4, "8-10")]
+_G3 = [("Squat", 4, "8-10"), ("Leg Press", 4, "8-10"), ("Seated Leg Curl", 5, "12-15"),
+       ("Seated Calf Raise", 4, "15-20")]
+_G4 = [("Dumbbell Incline Chest Press", 4, "8-10"), ("Cable Fly", 3, "12-15"), ("Barbell Overhead Press", 4, "8-10"),
+       ("Dumbbell Lateral Raise", 6, "8-15"), ("Reverse Pec Deck", 3, "12-15"), ("Triceps Pushdown", 4, "10-12")]
+_G5 = [("Lat Pulldown", 4, "8-10"), ("Seated Cable Row", 4, "12-15"), ("Romanian Deadlift", 4, "8-10"),
+       ("Incline Dumbbell Curl", 4, "8-10"), ("Leg Press", 5, "8-10"), ("Seated Calf Raise", 4, "15-20")]
+# klasik itiş / çekiş / bacak (her biri haftada 2)
+_PUSH = [("Bench Press", 4, "5-8"), ("Barbell Overhead Press", 3, "8"), ("Dumbbell Incline Chest Press", 3, "10"),
+         ("Dumbbell Lateral Raise", 4, "15"), ("Triceps Pushdown", 3, "12")]
+_PULL = [("Barbell Row", 4, "8"), ("Lat Pulldown", 3, "10"), ("Face Pull", 3, "15"), ("Barbell Curl", 3, "10"),
+         ("Dumbbell Hammer Curl", 2, "12")]
+_LEGS = [("Squat", 4, "5-8"), ("Romanian Deadlift", 3, "10"), ("Leg Press", 3, "10"), ("Seated Leg Curl", 3, "12"),
+         ("Standing Calf Raise", 4, "12")]
+# üst / alt / itiş / çekiş / bacak
+_UP = [("Bench Press", 3, "6"), ("Barbell Row", 3, "8"), ("Barbell Overhead Press", 3, "8"), ("Lat Pulldown", 3, "10"),
+       ("Barbell Curl", 2, "10"), ("Triceps Pushdown", 2, "12")]
+_LOW = [("Squat", 3, "6"), ("Romanian Deadlift", 3, "8"), ("Leg Press", 3, "10"), ("Seated Leg Curl", 3, "12"),
+        ("Standing Calf Raise", 3, "12")]
+_PUSH2 = [("Dumbbell Incline Chest Press", 3, "10"), ("Dumbbell Shoulder Press", 3, "10"), ("Cable Fly", 3, "12"),
+          ("Dumbbell Lateral Raise", 4, "15"), ("Overhead Triceps Extension", 3, "12")]
+_PULL2 = [("Pull Up", 3, "8"), ("Seated Cable Row", 3, "10"), ("Face Pull", 3, "15"), ("Reverse Pec Deck", 2, "15"),
+          ("Dumbbell Hammer Curl", 3, "12"), ("EZ Bar Curl", 2, "10")]
+_LEGS2 = [("Hack Squat", 3, "10"), ("Bulgarian Split Squat", 3, "10"), ("Leg Extension", 3, "12"),
+          ("Lying Leg Curl", 3, "12"), ("Hip Thrust", 3, "10"), ("Seated Calf Raise", 3, "15")]
+# tam vücut ABC (3 gün) ve ABAB (4 gün)
+_FA = [("Squat", 3, "5"), ("Bench Press", 3, "5"), ("Barbell Row", 3, "8"), ("Dumbbell Lateral Raise", 3, "15"),
+       ("Triceps Pushdown", 2, "12")]
+_FB = [("Deadlift", 3, "5"), ("Barbell Overhead Press", 3, "8"), ("Lat Pulldown", 3, "10"), ("Leg Press", 3, "10"),
+       ("Barbell Curl", 2, "10")]
+_FC = [("Front Squat", 3, "8"), ("Dumbbell Incline Chest Press", 3, "10"), ("Seated Cable Row", 3, "10"),
+       ("Romanian Deadlift", 3, "8"), ("Face Pull", 3, "15"), ("Standing Calf Raise", 3, "12")]
+_XA = [("Squat", 3, "6"), ("Bench Press", 3, "6"), ("Barbell Row", 3, "8"), ("Dumbbell Lateral Raise", 3, "15"),
+       ("Triceps Pushdown", 2, "12"), ("Standing Calf Raise", 3, "12")]
+_XB = [("Romanian Deadlift", 3, "8"), ("Barbell Overhead Press", 3, "8"), ("Lat Pulldown", 3, "10"),
+       ("Leg Press", 3, "10"), ("Barbell Curl", 2, "10"), ("Cable Crunch", 3, "15")]
+
 POPULAR = [
-    _p("ppl", "Push / Pull / Legs", 6, [
-        ("Bench Press", 8, "5-8"), ("Barbell Overhead Press", 6, "8"), ("Dumbbell Incline Chest Press", 6, "10"),
-        ("Triceps Pushdown", 6, "12"), ("Dumbbell Lateral Raise", 8, "15"), ("Deadlift", 3, "5"),
-        ("Barbell Row", 8, "8"), ("Lat Pulldown", 6, "10"), ("Face Pull", 6, "15"), ("Barbell Curl", 6, "10"),
-        ("Dumbbell Hammer Curl", 4, "12"), ("Squat", 8, "5-8"), ("Romanian Deadlift", 6, "10"),
-        ("Leg Press", 6, "10"), ("Seated Leg Curl", 6, "12"), ("Standing Calf Raise", 8, "12")]),
-    _p("ul", "Upper / Lower", 4, [
-        ("Bench Press", 6, "6"), ("Barbell Row", 6, "8"), ("Barbell Overhead Press", 4, "8"),
-        ("Lat Pulldown", 6, "10"), ("Dumbbell Incline Chest Press", 4, "10"), ("Seated Cable Row", 4, "10"),
-        ("Dumbbell Lateral Raise", 6, "15"), ("Barbell Curl", 4, "10"), ("Triceps Pushdown", 4, "12"),
-        ("Squat", 6, "6"), ("Romanian Deadlift", 6, "8"), ("Leg Press", 4, "10"), ("Seated Leg Curl", 4, "12"),
-        ("Standing Calf Raise", 6, "12"), ("Cable Crunch", 4, "15")]),
-    _p("fb", "Full Body", 3, [
-        ("Squat", 9, "5"), ("Bench Press", 9, "5"), ("Barbell Row", 9, "8"), ("Barbell Overhead Press", 3, "8"),
-        ("Romanian Deadlift", 3, "8"), ("Lat Pulldown", 3, "10"), ("Dumbbell Lateral Raise", 6, "15"),
-        ("Barbell Curl", 3, "10"), ("Triceps Pushdown", 3, "12"), ("Standing Calf Raise", 3, "12"),
-        ("Plank", 3, "45 sn")]),
-    _p("sl5", "StrongLifts 5×5", 3, [
-        ("Squat", 15, "5"), ("Bench Press", 8, "5"), ("Barbell Row", 8, "5"), ("Barbell Overhead Press", 7, "5"),
-        ("Deadlift", 2, "5")]),
-    _p("ss", "Starting Strength", 3, [
-        ("Squat", 9, "5"), ("Bench Press", 5, "5"), ("Barbell Overhead Press", 4, "5"), ("Deadlift", 2, "5"),
-        ("Chin Up", 3, "8")]),
-    _p("531", "5/3/1 Boring But Big", 4, [
-        ("Barbell Overhead Press", 8, "5/3/1 + 5×10"), ("Bench Press", 8, "5/3/1 + 5×10"),
-        ("Squat", 8, "5/3/1 + 5×10"), ("Deadlift", 8, "5/3/1 + 5×10"), ("Chin Up", 10, "10"),
-        ("Dumbbell Row", 5, "10"), ("Hanging Leg Raise", 10, "10")]),
-    _p("phul", "PHUL", 4, [
-        ("Bench Press", 7, "3-5"), ("Dumbbell Incline Chest Press", 4, "8-12"), ("Barbell Row", 7, "3-5"),
-        ("Lat Pulldown", 4, "6-10"), ("Barbell Overhead Press", 3, "5-8"), ("Cable Fly", 3, "10-12"),
-        ("Seated Cable Row", 4, "8-12"), ("Dumbbell Lateral Raise", 4, "10-12"), ("Barbell Curl", 6, "6-12"),
-        ("Skull Crusher", 6, "6-12"), ("Squat", 4, "3-5"), ("Deadlift", 3, "3-5"), ("Leg Press", 5, "10-15"),
-        ("Seated Leg Curl", 7, "6-12"), ("Standing Calf Raise", 8, "6-15"), ("Front Squat", 4, "8-12"),
-        ("Lunge", 3, "8-12"), ("Leg Extension", 4, "10-15")]),
-    _p("phat", "PHAT", 5, [
-        ("Bench Press", 6, "3-5"), ("Dumbbell Incline Chest Press", 6, "8-12"), ("Cable Fly", 3, "12-15"),
-        ("Barbell Row", 6, "3-5"), ("Pull Up", 5, "6-10"), ("Seated Cable Row", 3, "12-15"),
-        ("Dumbbell Shoulder Press", 5, "6-10"), ("Dumbbell Lateral Raise", 6, "12-20"), ("Barbell Curl", 5, "6-10"),
-        ("Preacher Curl", 3, "8-12"), ("Skull Crusher", 5, "6-10"), ("Triceps Pushdown", 3, "12-15"),
-        ("Squat", 9, "3-5 / 8-12"), ("Hack Squat", 3, "8-12"), ("Leg Extension", 3, "12-20"),
-        ("Romanian Deadlift", 6, "5-8"), ("Seated Leg Curl", 6, "8-12"), ("Standing Calf Raise", 8, "8-15"),
-        ("Barbell Shrug", 3, "8-12")]),
-    _p("arnold", "Arnold Split", 6, [
-        ("Bench Press", 8, "6-10"), ("Dumbbell Incline Chest Press", 8, "8-12"), ("Cable Fly", 6, "12"),
-        ("Pull Up", 8, "8-10"), ("Barbell Row", 8, "8-10"), ("T-Bar Row", 6, "10"),
-        ("Barbell Overhead Press", 8, "8"), ("Dumbbell Lateral Raise", 8, "12"), ("Reverse Pec Deck", 6, "12"),
-        ("Barbell Curl", 8, "8-10"), ("Dumbbell Curl", 6, "10"), ("Close Grip Bench Press", 8, "8-10"),
-        ("Overhead Triceps Extension", 6, "10"), ("Squat", 8, "8-10"), ("Leg Press", 6, "10"),
-        ("Seated Leg Curl", 8, "10"), ("Standing Calf Raise", 10, "15"), ("Crunch", 8, "20")]),
-    _p("bro", "Bro Split", 5, [
-        ("Bench Press", 4, "8"), ("Dumbbell Incline Chest Press", 4, "10"), ("Cable Fly", 3, "12"),
-        ("Pec Deck", 3, "12"), ("Deadlift", 3, "5"), ("Lat Pulldown", 4, "10"), ("Barbell Row", 4, "8"),
-        ("Seated Cable Row", 3, "10"), ("Dumbbell Shoulder Press", 4, "10"), ("Dumbbell Lateral Raise", 4, "15"),
-        ("Reverse Pec Deck", 3, "15"), ("Barbell Shrug", 3, "12"), ("Barbell Curl", 3, "10"),
-        ("Dumbbell Hammer Curl", 3, "12"), ("Preacher Curl", 3, "12"), ("Triceps Pushdown", 3, "12"),
-        ("Skull Crusher", 3, "10"), ("Overhead Triceps Extension", 3, "12"), ("Squat", 4, "8"),
-        ("Leg Press", 4, "10"), ("Leg Extension", 3, "12"), ("Seated Leg Curl", 4, "12"),
-        ("Standing Calf Raise", 4, "15")]),
+    _p("mine", "Push / Pull / Legs + Power", 4, _week(_MY_PUSH, _MY_PULL, _MY_LEGS, _MY_POWER),
+       "Pzt itiş · Çar çekiş · Cum bacak · Paz güç + bacak"),
+    _p("ppl", "Push / Pull / Legs", 6, _week(_PUSH, _PULL, _LEGS, _PUSH, _PULL, _LEGS), "itiş · çekiş · bacak × 2"),
+    _p("ulppl", "Upper / Lower / Push / Pull / Legs", 5, _week(_UP, _LOW, _PUSH2, _PULL2, _LEGS2),
+       "üst · alt · dinlenme · itiş · çekiş · bacak"),
+    _p("guray", "Güray's Hypertrophy", 5, _week(_G1, _G2, _G3, _G4, _G5),
+       "göğüs + omuz · sırt + kol · bacak · göğüs + omuz · sırt + bacak"),
+    _p("sl5", "5×5", 3, [("Squat", 15, "5"), ("Bench Press", 8, "5"), ("Barbell Row", 8, "5"),
+                         ("Barbell Overhead Press", 7, "5"), ("Deadlift", 2, "5")],
+       "A (squat, bench, row) · B (squat, press, deadlift) dönüşümlü"),
+    _p("ss", "3×5", 3, [("Squat", 9, "5"), ("Bench Press", 5, "5"), ("Barbell Overhead Press", 4, "5"),
+                        ("Deadlift", 2, "5"), ("Chin Up", 3, "8")], "A / B dönüşümlü, her gün squat"),
+    _p("fb3", "Full Body ABC", 3, _week(_FA, _FB, _FC), "A · B · C (haftada 3 farklı tam vücut)"),
+    _p("fb4", "Full Body ABAB", 4, _week(_XA, _XB, _XA, _XB), "A · B · A · B"),
 ]
 
 

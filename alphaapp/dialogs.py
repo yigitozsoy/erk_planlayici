@@ -80,6 +80,10 @@ class PrefsDialog(ThemedDialog):
             ("pcat_sport_food", "cat_sport"), ("desk_section", "widgets"), ("pcat_phone", "phone"),
             ("data", "folder_open"), ("about", "info"))
 
+    def _sections(self):
+        from .navmenu import open_sections
+        open_sections(self.win)
+
     def __init__(self, win, start=None):
         super().__init__(win, t("preferences"))
         self.win = win
@@ -169,6 +173,10 @@ class PrefsDialog(ThemedDialog):
                      prefs.get("currency", "₺"))
         cur.currentIndexChanged.connect(lambda: prefs.set("currency", cur.currentData()))
         lay.addWidget(_row(t("currency"), cur))
+        b_sec = QPushButton(t("sec_open"))
+        b_sec.setObjectName("Pill")
+        b_sec.clicked.connect(self._sections)
+        lay.addWidget(_row(t("sec_title"), b_sec, t("sec_row_sub")))
 
         section(t("appearance"))
         self.c_theme = _combo([(v, variant_label(v)) for v in VARIANTS], current_variant())
@@ -210,12 +218,15 @@ class PrefsDialog(ThemedDialog):
         sw = ToggleSwitch(prefs.get("show_finance_on_today", True))
         sw.toggled.connect(lambda v: prefs.set("show_finance_on_today", v))
         lay.addWidget(_row(t("show_finance"), sw))
+        sw = ToggleSwitch(prefs.get("show_habits_on_today", True))
+        sw.toggled.connect(lambda v: prefs.set("show_habits_on_today", v))
+        lay.addWidget(_row(t("show_habits"), sw))
 
         section(t("schedule_section"))
         sw = ToggleSwitch(prefs.get("show_place", True))
         sw.toggled.connect(lambda v: prefs.set("show_place", v))
         lay.addWidget(_row(t("pref_show_place"), sw, t("pref_show_place_sub")))
-        sw = ToggleSwitch(prefs.get("habits_in_schedule", False))
+        sw = ToggleSwitch(prefs.get("habits_in_schedule", True))
         sw.toggled.connect(lambda v: prefs.set("habits_in_schedule", v))
         lay.addWidget(_row(t("pref_habits_sched"), sw, t("pref_habits_sched_sub")))
 

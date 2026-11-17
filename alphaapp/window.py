@@ -175,6 +175,9 @@ class MainWindow(QMainWindow):
             start = "today"
         self.show_page(start if start in self.pages else "today")
         self.maybe_plan()
+        from . import navmenu
+        if navmenu.should_onboard(self.store):        # ilk açılış: hangi bölümler kullanılacak?
+            QTimer.singleShot(500, lambda: navmenu.open_sections(self, first=True))
 
         # gece yarısı geçince "Bugün" ve geri sayımlar yenilensin
         self._day = day_today()
