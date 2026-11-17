@@ -30,7 +30,7 @@ yaklaşanlar) `https://yigitozsoy.net/api/alpha.php`'ye gider. Hedef / vision bo
 gitmez (kullanıcı kesin istemedi; smoke testi denetler). Site çıplak alan adını www.'ya 301'ler (POST kaybolur):
 adres `https://www.yigitozsoy.net/api/alpha.php`; WebSync yönlendirmede adresi kendisi günceller. Anahtar prefs web_key, X-Alpha-Key başlığı; sunucuda yalnızca
 sha256'sı (`api/_alpha_key.php`). Sayfa: site klasöründe `alpha/index.html` (salt okunur, anahtar #k= ile bir kez gelir,
-localStorage'da önbellek). Site: `Desktop\yigitozsoy.net` (Apache + PHP, git yok, kullanıcı elle yükler).
+localStorage'da önbellek). Site: `Desktop\yigitozsoy.net` (Apache + PHP, kullanıcı sunucuya elle yükler; yedek: gizli GitHub deposu yigitozsoy/yigitozsoy.net, archive/ ve api/_auth.php + _alpha_key.php hariç).
 Test `LOCALAPPDATA` **ve** `ALPHA_DATA_DIR`'ı geçici klasöre çevirir, offscreen çizer (`QT_QPA_FONTDIR` =
 Windows\Fonts, yoksa yazılar kutu çıkar). Kendi betiklerinde ikisini de ayarla: yalnızca LOCALAPPDATA verirsen gerçek
 Belgeler\alpha'ya yazarsın.
