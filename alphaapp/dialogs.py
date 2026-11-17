@@ -8,10 +8,67 @@ from PyQt6.QtWidgets import (QVBoxLayout, QHBoxLayout, QLabel, QComboBox, QLineE
                              QWidget, QSpinBox, QFileDialog, QSlider, QStackedWidget, QButtonGroup, QFrame)
 
 from .config import day_today
+from .components import button
 from .config import prefs, BASE_DIR, DATA_DIR
 from .i18n import t
 from .theme import theme, VARIANTS, variant_label, current_variant
 from .widgets import ThemedDialog, ToggleSwitch, Divider
+
+
+class GradePointsDialog(ThemedDialog):
+    """Harf notlarının 4'lük karşılığı (okuldan okula değişebilir). Kayıtta yalnızca varsayılandan farklılar tutulur."""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        from PyQt6.QtWidgets import QGridLayout, QDoubleSpinBox
+        from . import grades
+        self.setWindowTitle(t("gp_title"))
+        v = QVBoxLayout(self)
+        v.setContentsMargins(22, 18, 22, 14)
+        v.setSpacing(10)
+        h = QLabel(t("gp_title"))
+        h.setStyleSheet("font-size: 17px; font-weight: 700;")
+        v.addWidget(h)
+        s = QLabel(t("gp_note"))
+        s.setObjectName("Secondary")
+        s.setWordWrap(True)
+        v.addWidget(s)
+        g = QGridLayout()
+        g.setHorizontalSpacing(14)
+        g.setVerticalSpacing(6)
+        cur = grades.points()
+        self.spins = {}
+        for i, k in enumerate(grades.LETTERS + grades.EXTRA_LETTERS):
+            lb = QLabel(k)
+            lb.setStyleSheet("font-weight: 600;")
+            sp = QDoubleSpinBox()
+            sp.setRange(0, 4)
+            sp.setDecimals(2)
+            sp.setSingleStep(0.25)
+            sp.setValue(cur[k])
+            self.spins[k] = sp
+            g.addWidget(lb, i % 6, (i // 6) * 2)
+            g.addWidget(sp, i % 6, (i // 6) * 2 + 1)
+        v.addLayout(g)
+        bar = QHBoxLayout()
+        reset = button(t("gp_reset"), kind="Flat")
+        reset.clicked.connect(lambda: [sp.setValue(grades.POINTS[k]) for k, sp in self.spins.items()])
+        bar.addWidget(reset)
+        bar.addStretch(1)
+        cancel = button(t("cancel"), kind="Flat")
+        cancel.clicked.connect(self.reject)
+        ok = button(t("save"), kind="Primary")
+        ok.setDefault(True)
+        ok.clicked.connect(self._save)
+        bar.addWidget(cancel)
+        bar.addWidget(ok)
+        v.addLayout(bar)
+
+    def _save(self):
+        from . import grades
+        prefs.set("grade_points", {k: round(sp.value(), 2) for k, sp in self.spins.items()
+                                   if abs(sp.value() - grades.POINTS[k]) > 1e-6})
+        self.accept()
 
 
 def _row(label, widget, sub=None):
@@ -173,10 +230,12 @@ class PrefsDialog(ThemedDialog):
                      prefs.get("currency", "₺"))
         cur.currentIndexChanged.connect(lambda: prefs.set("currency", cur.currentData()))
         lay.addWidget(_row(t("currency"), cur))
-        b_sec = QPushButton(t("sec_open"))
-        b_sec.setObjectName("Pill")
+        b_sec = button(t("sec_open"))
         b_sec.clicked.connect(self._sections)
         lay.addWidget(_row(t("sec_title"), b_sec, t("sec_row_sub")))
+        b_gp = button(t("gp_open"))
+        b_gp.clicked.connect(lambda: GradePointsDialog(self).exec() and self.win.pages["education"].mark_dirty())
+        lay.addWidget(_row(t("gp_title"), b_gp, t("gp_sub")))
 
         section(t("appearance"))
         self.c_theme = _combo([(v, variant_label(v)) for v in VARIANTS], current_variant())
@@ -246,8 +305,7 @@ class PrefsDialog(ThemedDialog):
         lay.addWidget(_row(t("rem_lead"), sp))
         snd = _combo([(k, t("snd_" + k)) for k in SOUNDS], prefs.get("reminder_sound", "chime"))
         snd.currentIndexChanged.connect(lambda: (prefs.set("reminder_sound", snd.currentData()), self._try_sound()))
-        b_try = QPushButton(t("rem_try"))
-        b_try.setObjectName("Pill")
+        b_try = button(t("rem_try"))
         b_try.clicked.connect(lambda: win.reminders.test())
         box = QHBoxLayout()
         box.setSpacing(8)
@@ -305,13 +363,11 @@ class PrefsDialog(ThemedDialog):
         sw = ToggleSwitch(prefs.get("web_on", False))
         sw.toggled.connect(self._web_on)
         lay.addWidget(_row(t("web_on"), sw, t("web_on_sub")))
-        b = QPushButton(t("web_copy"))
-        b.setObjectName("Pill")
+        b = button(t("web_copy"))
         b.clicked.connect(self._web_copy)
         self.web_link_sub = None
         lay.addWidget(_row(t("web_link"), b, t("web_link_sub", u=self._web_page_host())))
-        b = QPushButton(t("web_send"))
-        b.setObjectName("Pill")
+        b = button(t("web_send"))
         b.clicked.connect(self._web_send)
         self.web_status_row = _row(t("web_status"), b, " ")
         self.web_status = self.web_status_row.findChildren(QLabel)[1]
@@ -325,8 +381,7 @@ class PrefsDialog(ThemedDialog):
         bx = QHBoxLayout()
         bx.setSpacing(8)
         for key, fn in (("web_keyfile", self._web_keyfile), ("web_new_key", self._web_new_key)):
-            b = QPushButton(t(key))
-            b.setObjectName("Pill")
+            b = button(t(key))
             b.clicked.connect(fn)
             bx.addWidget(b)
         lay.addWidget(_row(t("web_key"), bx, t("web_key_sub")))
@@ -337,11 +392,9 @@ class PrefsDialog(ThemedDialog):
         category("data")
         note(t("data_sub"))
         bx = QHBoxLayout()
-        b1 = QPushButton(t("open_folder"))
-        b1.setObjectName("Pill")
+        b1 = button(t("open_folder"))
         b1.clicked.connect(lambda: os.startfile(DATA_DIR))
-        b2 = QPushButton(t("export_json"))
-        b2.setObjectName("Pill")
+        b2 = button(t("export_json"))
         b2.clicked.connect(self._export)
         bx.addWidget(b1)
         bx.addWidget(b2)
@@ -353,6 +406,25 @@ class PrefsDialog(ThemedDialog):
         path.setObjectName("Secondary")
         path.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         lay.addWidget(path)
+        # ikinci yedek klasörü
+        bw = QWidget()
+        bl = QHBoxLayout(bw)
+        bl.setContentsMargins(0, 0, 0, 0)
+        bl.setSpacing(6)
+        self.bk_lbl = QLabel()
+        self.bk_lbl.setObjectName("Secondary")
+        bk_pick = button(t("bk_dir_pick"))
+        bk_pick.clicked.connect(self._backup_pick)
+        self.bk_clear = button(t("bk_dir_clear"), kind="Flat")
+        self.bk_clear.clicked.connect(lambda: self._backup_set(""))
+        bk_now = button(t("bk_now"))
+        bk_now.clicked.connect(self._backup_now)
+        for x in (self.bk_clear, bk_pick, bk_now):
+            bl.addWidget(x)
+        lay.addSpacing(10)
+        lay.addWidget(_row(t("bk_dir"), bw, t("bk_dir_sub")))
+        lay.addWidget(self.bk_lbl)
+        self._backup_show()
 
         # ============================================================ Hakkında
         from . import __version__, __author__, REPO_URL
@@ -371,8 +443,7 @@ class PrefsDialog(ThemedDialog):
         foot = QHBoxLayout()
         foot.setContentsMargins(20, 10, 20, 16)
         foot.addStretch(1)
-        ok = QPushButton(t("done"))
-        ok.setObjectName("Primary")
+        ok = button(t("done"), kind="Primary")
         ok.clicked.connect(self.accept)
         foot.addWidget(ok)
         outer.addLayout(foot)
@@ -479,6 +550,29 @@ class PrefsDialog(ThemedDialog):
                     f.write(key_file_text(prefs.get("web_key")))
             except OSError:
                 pass
+
+    def _backup_show(self):
+        d = prefs.get("backup_dir") or ""
+        self.bk_lbl.setText(d or t("bk_dir_none"))
+        self.bk_clear.setVisible(bool(d))
+
+    def _backup_set(self, d):
+        prefs.set("backup_dir", d)
+        self._backup_show()
+
+    def _backup_pick(self):
+        d = QFileDialog.getExistingDirectory(self, t("bk_dir"), prefs.get("backup_dir") or os.path.expanduser("~"))
+        if d:
+            self._backup_set(os.path.normpath(d))
+            self._backup_now()
+
+    def _backup_now(self):
+        d = prefs.get("backup_dir")
+        p = self.win.store.backup_now()
+        if p:
+            self.win.toast(t("bk_now_done", p=p))
+        else:
+            self.win.toast(t("bk_dir_missing") if d else t("bk_now_local"))
 
     def _export(self):
         path, _ = QFileDialog.getSaveFileName(self, t("export_json"),

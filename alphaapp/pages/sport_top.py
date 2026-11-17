@@ -4,20 +4,20 @@ kaslar girilen max değerlere göre renkli). Kartlara tıklamak aşağıdaki ayr
 MaxDialog: ana hareketlerin maksimumu (kg × tekrar) → lifts kayıtları (fitness.history okur, development boyar).
 """
 from PyQt6.QtCore import Qt, QTimer, pyqtSignal
-from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QGridLayout,
+from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, QGridLayout,
                              QDoubleSpinBox, QSpinBox)
 
 from .. import fitness
 from ..body3d import body_view
 from datetime import timedelta
 
-from ..components import Card, Row
+from ..components import Card, Row, clear_layout, button, sub_label
 from ..config import day_today, prefs
 from ..forms import edit_item, bind_row
 from ..i18n import t, fmt_num, fmt_day
 from ..store import parse_date, num
 from ..widgets import ThemedDialog
-from .sport_ui import LineChart, _box
+from .sport_ui import LineChart, _box, e1rm_tip, level_tip
 
 MAIN_LIFTS = ("Bench Press", "Squat", "Deadlift", "Barbell Overhead Press", "Barbell Row", "Lat Pulldown",
               "Barbell Curl", "Triceps Pushdown")
@@ -34,8 +34,7 @@ class ClickCard(Card):
 
 
 def _link(text):
-    b = QPushButton(text)
-    b.setObjectName("Pill")
+    b = button(text)
     b.setStyleSheet("min-width: 0px; padding: 4px 12px;")
     b.setCursor(Qt.CursorShape.PointingHandCursor)
     b.setFocusPolicy(Qt.FocusPolicy.NoFocus)
@@ -56,21 +55,7 @@ class BodyStatsCard(ClickCard):
         self.show_all = False
 
     def refresh(self):
-        while self.v.count():
-            it = self.v.takeAt(0)
-            w = it.widget()
-            if w is not None:
-                w.hide()
-                w.setParent(None)
-                w.deleteLater()
-            elif it.layout() is not None:
-                lay = it.layout()
-                while lay.count():
-                    x = lay.takeAt(0).widget()
-                    if x is not None:
-                        x.hide()
-                        x.setParent(None)
-                        x.deleteLater()
+        clear_layout(self.v)
         rows = sorted((b for b in self.store.all("body") if parse_date(b.get("date"))),
                       key=lambda b: (b.get("date"), b.get("created") or ""))
         series = {}
@@ -93,8 +78,13 @@ class BodyStatsCard(ClickCard):
         gb.mousePressEvent = lambda _e: QTimer.singleShot(0, self._set_goal)
         strip.addWidget(gb, 1)
         fat = fpts[-1][1] if fpts else None
+        lastf = next((b for b in reversed(rows) if fitness.fat_of(b)), None)
+        ftip = ""
+        if lastf:
+            navy = lastf.get("fat_src") == "navy" or not num(lastf.get("fat"))
+            ftip = t("tip_fat_navy" if navy else "tip_fat_manual") + "\n" + t("tip_lean")
         strip.addWidget(_box(t("body_fat"), f"%{fmt_num(fat, 1)}" if fat else "—",
-                             t("top_lean_v", v=fmt_num(cur * (1 - fat / 100), 1)) if cur and fat else ""), 1)
+                             t("top_lean_v", v=fmt_num(cur * (1 - fat / 100), 1)) if cur and fat else "", ftip), 1)
         self.v.addLayout(strip)
         # geçmiş: tıkla = düzenle, sağ tık = düzenle / sil; altta geçmiş tarihli kayıt
         hist = [b for b in reversed(rows) if num(b.get("weight")) > 0 or fitness.fat_of(b)]
@@ -125,9 +115,7 @@ class BodyStatsCard(ClickCard):
             c.set_data(fpts)
             self.v.addWidget(c)
         if not rows:
-            e = QLabel(t("top_body_empty"))
-            e.setObjectName("RowSub")
-            e.setWordWrap(True)
+            e = sub_label(t("top_body_empty"), wrap=True)
             self.v.addWidget(e)
         past = _link(t("top_add_past"))
         past.clicked.connect(lambda: edit_item(self.win, "body", preset={
@@ -197,12 +185,7 @@ class DevPreviewCard(ClickCard):
         tips = {m: t("dev_%d" % d["level"]) + " · " + d["ex"] + f" · 1RM ≈ {fmt_num(d['e1rm'], 1)} kg"
                 for m, d in dev.items()}
         self.model.set_heat(heat, tips)
-        while self.lifts.count():
-            w = self.lifts.takeAt(0).widget()
-            if w is not None:
-                w.hide()
-                w.setParent(None)
-                w.deleteLater()
+        clear_layout(self.lifts)
         shown = 0
         for name in MAIN_LIFTS:
             b = fitness.best(self.store, name)
@@ -217,15 +200,13 @@ class DevPreviewCard(ClickCard):
             a = QLabel(name)
             a.setObjectName("RowTitle")
             h.addWidget(a, 1)
-            v = QLabel(f"{fmt_num(b['e1rm'], 0)} kg" + (f"  ·  {t('dev_%d' % lvl)}" if lvl is not None else ""))
-            v.setObjectName("RowSub")
+            v = sub_label(f"{fmt_num(b['e1rm'], 0)} kg" + (f"  ·  {t('dev_%d' % lvl)}" if lvl is not None else ""))
             h.addWidget(v)
+            w.setToolTip(e1rm_tip(b) + "\n" + level_tip(name, b["e1rm"], bw))
             self.lifts.addWidget(w)
             shown += 1
         if not shown:
-            e = QLabel(t("top_dev_empty"))
-            e.setObjectName("RowSub")
-            e.setWordWrap(True)
+            e = sub_label(t("top_dev_empty"), wrap=True)
             self.lifts.addWidget(e)
         self.set_sub(t("top_dev_sub_bw", bw=fmt_num(bw, 1)) if bw else t("top_dev_sub"))
 
@@ -243,17 +224,14 @@ class MaxDialog(ThemedDialog):
         h = QLabel(t("top_enter_max"))
         h.setStyleSheet("font-size: 18px; font-weight: 700;")
         v.addWidget(h)
-        sub = QLabel(t("max_hint"))
-        sub.setObjectName("RowSub")
-        sub.setWordWrap(True)
+        sub = sub_label(t("max_hint"), wrap=True)
         v.addWidget(sub)
         g = QGridLayout()
         g.setHorizontalSpacing(10)
         g.setVerticalSpacing(6)
         for c, text in enumerate(("", t("max_kg"), t("max_reps"))):
             if text:
-                lb = QLabel(text)
-                lb.setObjectName("RowSub")
+                lb = sub_label(text)
                 g.addWidget(lb, 0, c)
         self.rows = {}
         for i, name in enumerate(MAIN_LIFTS, 1):
@@ -274,11 +252,9 @@ class MaxDialog(ThemedDialog):
         v.addLayout(g)
         btns = QHBoxLayout()
         btns.addStretch(1)
-        c = QPushButton(t("cancel"))
-        c.setObjectName("Flat")
+        c = button(t("cancel"), kind="Flat")
         c.clicked.connect(self.reject)
-        ok = QPushButton(t("save"))
-        ok.setObjectName("Primary")
+        ok = button(t("save"), kind="Primary")
         ok.setDefault(True)
         ok.clicked.connect(self.save)
         btns.addWidget(c)
@@ -314,9 +290,7 @@ class FatDialog(ThemedDialog):
         h = QLabel(t("fat_calc_title"))
         h.setStyleSheet("font-size: 18px; font-weight: 700;")
         v.addWidget(h)
-        hint = QLabel(t("fat_calc_hint"))
-        hint.setObjectName("RowSub")
-        hint.setWordWrap(True)
+        hint = sub_label(t("fat_calc_hint"), wrap=True)
         v.addWidget(hint)
         self.sex = ChipBar([("m", t("fat_m")), ("f", t("fat_f"))], prefs.get("body_sex", "m"))
         self.sex.changed.connect(lambda _k: self._update())
@@ -350,8 +324,7 @@ class FatDialog(ThemedDialog):
         spin("weight", t("body_weight"), 30, 250, last.get("weight"), " kg", 1)
         for i, (k, lk) in enumerate(self.FIELDS, 2):
             spin(k, t(lk).replace(" (cm)", ""), 0, 250, last.get(k), " cm", i)
-        self.opt = QLabel(t("fat_optional"))
-        self.opt.setObjectName("RowSub")
+        self.opt = sub_label(t("fat_optional"))
         g.addWidget(self.opt, len(self.FIELDS) + 1, 2)
         v.addLayout(g)
         self.result = QLabel("")
@@ -359,11 +332,9 @@ class FatDialog(ThemedDialog):
         v.addWidget(self.result)
         btns = QHBoxLayout()
         btns.addStretch(1)
-        c = QPushButton(t("cancel"))
-        c.setObjectName("Flat")
+        c = button(t("cancel"), kind="Flat")
         c.clicked.connect(self.reject)
-        self.ok = QPushButton(t("save"))
-        self.ok.setObjectName("Primary")
+        self.ok = button(t("save"), kind="Primary")
         self.ok.setDefault(True)
         self.ok.clicked.connect(self.save)
         btns.addWidget(c)

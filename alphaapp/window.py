@@ -60,8 +60,8 @@ class Nav(QWidget):
 
     def rebuild(self):
         from . import navmenu
-        from .components import _clear_layout
-        _clear_layout(self.items)
+        from .components import clear_layout
+        clear_layout(self.items)
         self.group = QButtonGroup(self)
         self.group.setExclusive(True)
         self.btns = {}
@@ -141,9 +141,7 @@ class MainWindow(QMainWindow):
         self.titlebar.layout().insertWidget(self.titlebar.layout().indexOf(self.titlebar.btn_add), self.clock_pill)
 
         from .pages import build_pages
-        self.pages = build_pages(store, self)
-        for key, page in self.pages.items():
-            self.stack.addWidget(page)
+        self.pages = build_pages(store, self, self.stack.addWidget)      # sayfalar ilk açıldıklarında kurulur
 
         tb = self.titlebar
         tb.minimize.connect(self.showMinimized)
@@ -388,9 +386,8 @@ class MainWindow(QMainWindow):
             self.move(scr.x() + (scr.width() - w) // 2, scr.y() + (scr.height() - h) // 2)
 
     def save_state(self):
-        notes = self.pages.get("notes")
-        if notes is not None:
-            notes.commit()
+        if self.pages.built("notes"):
+            self.pages["notes"].commit()
         self.store.flush()
         prefs.set("window_geometry", bytes(self.saveGeometry().toBase64()).decode("ascii"))
 

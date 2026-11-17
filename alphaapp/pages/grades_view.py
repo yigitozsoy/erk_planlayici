@@ -12,7 +12,7 @@ from PyQt6.QtWidgets import (QWidget, QGridLayout, QHBoxLayout, QVBoxLayout, QLa
                              QInputDialog, QMessageBox, QFileDialog, QMenu, QToolTip)
 
 from .. import grades
-from ..components import Card, Row
+from ..components import Card, Row, button
 from ..forms import edit_item, bind_row
 from ..config import prefs
 from ..i18n import t, fmt_num, is_tr
@@ -370,9 +370,7 @@ class TranscriptCard(Card):
         self.store, self.win = store, win
         self.open_terms = set()
         self.add_clicked.connect(lambda: edit_item(win, "transcript"))
-        b = QPushButton(t("import_xlsx"))
-        b.setObjectName("Pill")
-        b.setCursor(Qt.CursorShape.PointingHandCursor)
+        b = button(t("import_xlsx"))
         b.clicked.connect(self._import)
         self.head_widget(b)
 

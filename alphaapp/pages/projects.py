@@ -12,7 +12,7 @@ from PyQt6.QtGui import QPainter, QPixmap, QPainterPath, QPen, QFont, QFontMetri
 from PyQt6.QtWidgets import QWidget, QLabel, QLineEdit, QSizePolicy, QVBoxLayout
 
 from ..config import day_today, IMAGES_DIR
-from ..components import Page, Card, Row, ProgressBar, ResponsiveRow, StatTile, TileGrid
+from ..components import Page, Card, Row, ProgressBar, ResponsiveRow, StatTile, TileGrid, sub_label
 from ..forms import edit_item, bind_row
 from ..i18n import t, due_badge, fmt_day, MONTHS_SHORT
 from ..store import parse_date
@@ -329,8 +329,8 @@ class ProjectsPage(Page):
         late = [x for x in ptasks if (parse_date(x.get("due")) or date.max) < td]
         self.t_late.set(str(len(late)), "", "bad" if late else None)
 
-        from ..components import _clear_layout
-        _clear_layout(self.cards_v)
+        from ..components import clear_layout
+        clear_layout(self.cards_v)
         cards = [self._card(p) for p in projects]
         for i in range(0, len(cards), 2):
             r = ResponsiveRow(860)
@@ -359,8 +359,7 @@ class ProjectsPage(Page):
         card.head_widget(more)
         prog = s.project_progress(p)
         n_open, n_all = s.project_task_counts(p["id"])
-        info = QLabel(f"%{int(prog)}" + (" · " + t("n_of_tasks", d=n_all - n_open, n=n_all) if n_all else ""))
-        info.setObjectName("RowSub")
+        info = sub_label(f"%{int(prog)}" + (" · " + t("n_of_tasks", d=n_all - n_open, n=n_all) if n_all else ""))
         card.add(ProgressBar(prog / 100, "good" if p.get("status") == "done" else "text", height=6))
         card.add(info)
         card.body.addSpacing(4)
@@ -371,9 +370,7 @@ class ProjectsPage(Page):
         if not tasks:
             card.empty(t("no_project_tasks"))
         if p.get("note"):
-            n = QLabel(p["note"].splitlines()[0][:140])
-            n.setObjectName("RowSub")
-            n.setWordWrap(True)
+            n = sub_label(p["note"].splitlines()[0][:140], wrap=True)
             card.add(n)
         card.layout().addSpacing(6)
         card.layout().addWidget(ProjectQuickTask(win, p))

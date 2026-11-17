@@ -13,10 +13,10 @@ import os
 
 from PyQt6.QtCore import Qt, QPointF, QRectF, QStringListModel, pyqtSignal
 from PyQt6.QtGui import QPainter, QPainterPath, QColor, QPen, QTransform
-from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLineEdit, QPushButton, QCompleter, QMenu,
+from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLineEdit, QCompleter, QMenu,
                              QSizePolicy, QLabel)
 
-from ..components import Card, ChipBar, Row, ResponsiveRow
+from ..components import Card, ChipBar, Row, ResponsiveRow, button, sub_label
 from ..config import prefs
 from ..forms import bind_row
 from ..i18n import t
@@ -314,8 +314,7 @@ class PlacesView(QWidget):
         self.search.returnPressed.connect(lambda: self._add_search("been"))
         top.addWidget(self.search)
         for st in ("been", "want"):
-            b = QPushButton(t("pl_mark_" + st))
-            b.setObjectName("Pill")
+            b = button(t("pl_mark_" + st))
             b.setStyleSheet("min-width: 0px;")
             b.setCursor(Qt.CursorShape.PointingHandCursor)
             b.clicked.connect(lambda _=False, s=st: self._add_search(s))
@@ -333,13 +332,11 @@ class PlacesView(QWidget):
             sw = QLabel()
             sw.setFixedSize(12, 12)
             sw.setStyleSheet(f"background: {c}; border-radius: 6px;")
-            lb = QLabel(t(k))
-            lb.setObjectName("RowSub")
+            lb = sub_label(t(k))
             leg.addWidget(sw)
             leg.addWidget(lb)
             leg.addSpacing(8)
-        hint = QLabel(t("pl_hint"))
-        hint.setObjectName("RowSub")
+        hint = sub_label(t("pl_hint"))
         leg.addStretch(1)
         leg.addWidget(hint)
         self.card.layout().addLayout(leg)

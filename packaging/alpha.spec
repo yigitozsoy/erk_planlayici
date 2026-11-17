@@ -6,7 +6,8 @@ import os
 
 ROOT = os.path.abspath(os.path.join(SPECPATH, ".."))
 
-datas = [(os.path.join(ROOT, "alphaapp", "assets"), os.path.join("alphaapp", "assets"))]
+datas = [(os.path.join(ROOT, "alphaapp", "assets"), os.path.join("alphaapp", "assets")),
+         (os.path.join(ROOT, "alphaapp", "locales"), os.path.join("alphaapp", "locales"))]
 hiddenimports = ["PyQt6.QtSvg", "PyQt6.QtNetwork", "winsound", "wave"]
 
 EXCLUDES = [

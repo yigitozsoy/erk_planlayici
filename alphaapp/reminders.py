@@ -11,6 +11,7 @@ from PyQt6.QtGui import QGuiApplication
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton
 
 from . import sounds
+from .components import sub_label
 from .config import prefs
 from .i18n import t
 from .store import parse_date
@@ -98,9 +99,7 @@ class ReminderPopup(QWidget):
         title.setTextFormat(Qt.TextFormat.PlainText)
         v.addWidget(title)
         span = f"{r['start']:%H:%M}" + (f"–{r['end']}" if r.get("end") else "")
-        sub = QLabel(" · ".join(x for x in (span, r.get("sub") or "") if x))
-        sub.setObjectName("RowSub")
-        sub.setWordWrap(True)
+        sub = sub_label(" · ".join(x for x in (span, r.get("sub") or "") if x), wrap=True)
         v.addWidget(sub)
         foot = QHBoxLayout()
         foot.setContentsMargins(0, 6, 4, 0)

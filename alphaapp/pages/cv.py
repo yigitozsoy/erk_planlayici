@@ -16,7 +16,7 @@ from PyQt6.QtGui import QPixmap, QPainter, QPainterPath
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFileDialog, QFrame, QPushButton,
                              QSizePolicy)
 
-from ..components import Card, ResponsiveRow, FlowLayout
+from ..components import Card, ResponsiveRow, FlowLayout, clear_layout, sub_label
 from ..config import prefs, DATA_DIR
 from ..forms import edit_item, item_menu
 from ..i18n import t
@@ -133,6 +133,17 @@ class Clickable(QFrame):
         self.menu_requested.emit(e.globalPos())
 
 
+def _breakable(s):
+    """Uzun e-posta / bağlantıda satır kırılabilsin: "/", "@", "." sonrasına görünmez kırılma noktası."""
+    out = []
+    for w in s.split(" "):
+        if len(w) > 24:
+            for ch in "/@.":
+                w = w.replace(ch, ch + "​")
+        out.append(w)
+    return " ".join(out)
+
+
 def _lbl(text, name, wrap=False, sel=False):
     lb = QLabel(text)
     lb.setObjectName(name)
@@ -156,13 +167,7 @@ class CvSheet(QFrame):
 
     def build(self, items, now_items):
         lay = self.v
-        while lay.count():
-            it = lay.takeAt(0)
-            w = it.widget()
-            if w is not None:
-                w.hide()
-                w.setParent(None)
-                w.deleteLater()
+        clear_layout(lay)
         dream = self.side == "dream"
         prof = next((x for x in items if x.get("section") == "profile"), None)
         if prof is None and dream:
@@ -215,7 +220,7 @@ class CvSheet(QFrame):
         if p.get("org"):
             col.addWidget(_lbl(p["org"], "CvInfo", wrap=True))
         if p.get("detail"):
-            col.addWidget(_lbl(p["detail"].replace("\n", "  ·  ").replace("-", "‑"), "CvMuted", wrap=True))
+            col.addWidget(_lbl(_breakable(p["detail"]).replace("\n", "  ·  ").replace("-", "‑"), "CvMuted", wrap=True))
         col.addStretch(1)
         h.addLayout(col, 1)
         if prof and prof.get("side") == self.side:
@@ -302,9 +307,7 @@ class CvView(QWidget):
         v = QVBoxLayout(self)
         v.setContentsMargins(0, 0, 0, 0)
         v.setSpacing(16)
-        self.summary = QLabel("")
-        self.summary.setObjectName("RowSub")
-        self.summary.setWordWrap(True)
+        self.summary = sub_label("", wrap=True)
         v.addWidget(self.summary)
         self.c_now = Card(t("cv_now"), t("cv_now_sub"), add_tip=t("new_cv"))
         self.c_now.add_clicked.connect(lambda: self._add("now"))

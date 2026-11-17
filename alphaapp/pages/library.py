@@ -6,12 +6,12 @@ import webbrowser
 
 from PyQt6.QtCore import Qt, QRectF, QPointF, QSize, QTimer
 from PyQt6.QtGui import QPainter, QPixmap, QPainterPath, QIcon
-from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton, QListWidget,
+from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QListWidget,
                              QListWidgetItem, QMenu)
 
 from .. import icons, library
 from ..config import IMAGES_DIR, prefs
-from ..components import Page, Card, ChipBar, StatTile, TileGrid
+from ..components import Page, Card, ChipBar, StatTile, TileGrid, button
 from ..forms import edit_item, delete_item
 from ..i18n import t
 from ..theme import theme, qcolor, color
@@ -124,8 +124,7 @@ class SearchDialog(ThemedDialog):
         self.ed.setObjectName("Search")
         self.ed.returnPressed.connect(self._search)
         row.addWidget(self.ed, 1)
-        b = QPushButton(t("lib_search"))
-        b.setObjectName("Primary")
+        b = button(t("lib_search"), kind="Primary")
         b.clicked.connect(self._search)
         row.addWidget(b)
         v.addLayout(row)
@@ -137,8 +136,7 @@ class SearchDialog(ThemedDialog):
         self.key_ed.setPlaceholderText(t("lib_tmdb_ph"))
         self.key_ed.setEchoMode(QLineEdit.EchoMode.Password)
         kl.addWidget(self.key_ed, 1)
-        kb = QPushButton(t("save"))
-        kb.setObjectName("Pill")
+        kb = button(t("save"))
         kb.clicked.connect(self._save_key)
         kl.addWidget(kb)
         v.addWidget(self.key_box)
@@ -154,13 +152,11 @@ class SearchDialog(ThemedDialog):
         self.list.itemClicked.connect(self._pick)
         v.addWidget(self.list, 1)
         foot = QHBoxLayout()
-        manual = QPushButton(t("lib_manual"))
-        manual.setObjectName("Flat")
+        manual = button(t("lib_manual"), kind="Flat")
         manual.clicked.connect(self._manual)
         foot.addWidget(manual)
         foot.addStretch(1)
-        c = QPushButton(t("cancel"))
-        c.setObjectName("Flat")
+        c = button(t("cancel"), kind="Flat")
         c.clicked.connect(self.reject)
         foot.addWidget(c)
         v.addLayout(foot)

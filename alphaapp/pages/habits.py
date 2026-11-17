@@ -8,7 +8,7 @@ from PyQt6.QtWidgets import QVBoxLayout, QLabel, QPushButton, QWidget
 
 from .. import habits_core as hc
 from ..config import day_today
-from ..components import Page, Card, Row, StatTile, TileGrid, DayGrid, FlowLayout, ResponsiveRow
+from ..components import Page, Card, Row, StatTile, TileGrid, DayGrid, FlowLayout, ResponsiveRow, clear_layout
 from ..forms import edit_item, bind_row, item_menu
 from ..i18n import t, fmt_num, WEEKDAYS_SHORT, MONTHS_SHORT
 from ..widgets import IconButton
@@ -117,11 +117,7 @@ class HabitsPage(Page):
         self.c_today.set_sub(t("habits_today_sub", d=_n(n_done), n=len(habits)) if habits else "")
 
         # --- hazır alışkanlıklar
-        while self.sug.count():
-            it = self.sug.takeAt(0)
-            if it.widget():
-                it.widget().hide()
-                it.widget().deleteLater()
+        clear_layout(self.sug)
         names = {(h.get("name") or "").strip().lower() for h in habits}
         free = [tp for tp in hc.TEMPLATES if tp["name"].lower() not in names and
                 not (tp.get("source") == "study" and any(h.get("source") == "study" for h in habits))]
@@ -144,13 +140,7 @@ class HabitsPage(Page):
         self.t_rate.set(f"%{int(round(rate * 100))}" if habits else "—", t("habit_rate_note"))
 
         # --- her alışkanlık: kareler
-        while self.cards_v.count():
-            it = self.cards_v.takeAt(0)
-            w = it.widget()
-            if w is not None:
-                w.hide()
-                w.setParent(None)
-                w.deleteLater()
+        clear_layout(self.cards_v)
         cards = [self._habit_card(h, td) for h in habits]
         for i in range(0, len(cards), 2):        # iki sütun (dar pencerede alt alta)
             r = ResponsiveRow(900)

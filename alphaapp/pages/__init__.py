@@ -16,39 +16,112 @@ KIND_ICON = {"task": None, "exam": "cat_education", "project": "cat_work", "debt
              "event": "group", "birthday": "cake", "workout": "cat_sport"}
 
 
-def build_pages(store, win):
-    from .today import TodayPage
-    from .schedule import SchedulePage
-    from .education import EducationPage
-    from .work import WorkPage
-    from .sport import SportPage
-    from .social import SocialPage
-    from .finance import FinancePage
-    from .notes import NotesPage
-    from .plan import PlanPage
-    from .habits import HabitsPage
-    from .goals import GoalsPage
-    from .category import CategoryPage
-    from .projects import ProjectsPage
-    from .library import LibraryPage
-    from .mind import MindPage
-    return {
-        "today": TodayPage(store, win),
-        "schedule": SchedulePage(store, win),
-        "habits": HabitsPage(store, win),
-        "goals": GoalsPage(store, win),
-        "education": EducationPage(store, win),
-        "work": WorkPage(store, win),
-        "projects": ProjectsPage(store, win),
-        "sport": SportPage(store, win),
-        "mind": MindPage(store, win),
-        "social": SocialPage(store, win),
-        "finance": FinancePage(store, win),
-        "personal": CategoryPage(store, win, "personal"),
-        "library": LibraryPage(store, win),
-        "notes": NotesPage(store, win),
-        "plan": PlanPage(store, win),
-    }
+class LazyPages(dict):
+    """Sayfalar ilk istendiklerinde kurulur (açılış hızlanır). pages[k] / get / in / for k in pages tüm sayfaları
+    bilir; values() / items() yalnızca kurulmuş olanları verir (yenileme, tema … kurulmamışa gerekmez)."""
+
+    def __init__(self, factories, on_build):
+        super().__init__()
+        self._f = dict(factories)
+        self._on_build = on_build
+
+    def _build(self, k):
+        page = self._f.pop(k)()
+        dict.__setitem__(self, k, page)
+        self._on_build(page)
+        return page
+
+    def built(self, k):
+        return dict.__contains__(self, k)
+
+    def __getitem__(self, k):
+        if k in self._f and not dict.__contains__(self, k):
+            return self._build(k)
+        return dict.__getitem__(self, k)
+
+    def get(self, k, default=None):
+        return self[k] if k in self else default
+
+    def __contains__(self, k):
+        return dict.__contains__(self, k) or k in self._f
+
+    def __iter__(self):
+        return iter(list(dict.keys(self)) + list(self._f))
+
+    def keys(self):
+        return list(self)
+
+    def __len__(self):
+        return dict.__len__(self) + len(self._f)
+
+    def pop(self, k, *default):
+        self._f.pop(k, None)
+        return dict.pop(self, k, *default)
+
+
+def build_pages(store, win, on_build):
+    """Sayfa üreticileri. İçe aktarmalar açık yazılı (PyInstaller modülleri ancak böyle görür)."""
+    def _today():
+        from .today import TodayPage
+        return TodayPage(store, win)
+
+    def _schedule():
+        from .schedule import SchedulePage
+        return SchedulePage(store, win)
+
+    def _habits():
+        from .habits import HabitsPage
+        return HabitsPage(store, win)
+
+    def _goals():
+        from .goals import GoalsPage
+        return GoalsPage(store, win)
+
+    def _education():
+        from .education import EducationPage
+        return EducationPage(store, win)
+
+    def _work():
+        from .work import WorkPage
+        return WorkPage(store, win)
+
+    def _projects():
+        from .projects import ProjectsPage
+        return ProjectsPage(store, win)
+
+    def _sport():
+        from .sport import SportPage
+        return SportPage(store, win)
+
+    def _mind():
+        from .mind import MindPage
+        return MindPage(store, win)
+
+    def _social():
+        from .social import SocialPage
+        return SocialPage(store, win)
+
+    def _finance():
+        from .finance import FinancePage
+        return FinancePage(store, win)
+
+    def _personal():
+        from .category import CategoryPage
+        return CategoryPage(store, win, "personal")
+
+    def _library():
+        from .library import LibraryPage
+        return LibraryPage(store, win)
+
+    def _notes():
+        from .notes import NotesPage
+        return NotesPage(store, win)
+
+    def _plan():
+        from .plan import PlanPage
+        return PlanPage(store, win)
+
+    return LazyPages({"today": _today, "schedule": _schedule, "habits": _habits, "goals": _goals, "education": _education, "work": _work, "projects": _projects, "sport": _sport, "mind": _mind, "social": _social, "finance": _finance, "personal": _personal, "library": _library, "notes": _notes, "plan": _plan}, on_build)
 
 
 def time_lead(text, width=86):

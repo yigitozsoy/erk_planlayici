@@ -52,7 +52,7 @@ from datetime import date, datetime, timedelta
 from PyQt6.QtCore import QObject, pyqtSignal, QTimer
 
 from .config import day_today
-from .config import DATA_FILE, BACKUP_DIR
+from .config import DATA_FILE, BACKUP_DIR, prefs
 
 COLLECTIONS = ("tasks", "routine", "courses", "exams", "workouts", "projects", "events", "birthdays",
                "transactions", "debts", "investments", "notes", "days", "habits", "meals", "accounts",
@@ -175,17 +175,32 @@ class Store(QObject):
         self._daily_backup()
 
     def _daily_backup(self):
-        """Günde bir kez data.json'un kopyası (son 14 gün tutulur)."""
+        """Günde bir kez data.json'un kopyası (son 14 gün tutulur). prefs backup_dir seçiliyse (USB, başka disk …)
+        aynı kopya oraya da yazılır; klasör o an yoksa sessizce geçilir."""
+        for d in (BACKUP_DIR, prefs.get("backup_dir") or None):
+            if d:
+                self._copy_backup(d, overwrite=False)
+
+    def _copy_backup(self, d, overwrite=True):
         try:
-            name = f"data-{day_today():%Y-%m-%d}.json"
-            dst = os.path.join(BACKUP_DIR, name)
-            if not os.path.exists(dst) and os.path.exists(self.path):
+            if not os.path.isdir(d) or not os.path.exists(self.path):
+                return None
+            dst = os.path.join(d, f"data-{day_today():%Y-%m-%d}.json")
+            if overwrite or not os.path.exists(dst):
                 shutil.copy2(self.path, dst)
-            olds = sorted(f for f in os.listdir(BACKUP_DIR) if f.startswith("data-") and f.endswith(".json"))
+            olds = sorted(f for f in os.listdir(d) if f.startswith("data-") and f.endswith(".json"))
             for f in olds[:-14]:
-                os.remove(os.path.join(BACKUP_DIR, f))
+                os.remove(os.path.join(d, f))
+            return dst
         except OSError:
-            pass
+            return None
+
+    def backup_now(self):
+        """Şu anki hâli (önce diske yazıp) yerel yedeklere ve seçili yedek klasörüne kopyalar. → ikinci kopyanın yolu."""
+        self.flush()
+        self._copy_backup(BACKUP_DIR)
+        d = prefs.get("backup_dir")
+        return self._copy_backup(d) if d else None
 
     def flush(self):
         if not self._dirty:

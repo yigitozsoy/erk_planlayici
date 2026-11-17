@@ -3,9 +3,10 @@
 from datetime import timedelta
 
 from PyQt6.QtCore import Qt
-from PyQt6.QtWidgets import QWidget, QHBoxLayout, QLabel, QPushButton, QMenu
+from PyQt6.QtWidgets import QWidget, QHBoxLayout, QPushButton, QMenu
 
 from .config import day_today
+from .components import sub_label
 from .i18n import t
 from .store import num, parse_date
 from .theme import theme
@@ -61,8 +62,7 @@ class CourseClock(QWidget):
         self.ic = IconButton("timer", "", 26, 18, role="text2")
         self.ic.setCursor(Qt.CursorShape.ArrowCursor)
         h.addWidget(self.ic)
-        self.lbl = QLabel("")
-        self.lbl.setObjectName("RowSub")
+        self.lbl = sub_label("")
         h.addWidget(self.lbl, 1)
         self.b_sw = IconButton("play", t("course_clock_sw"), 30, 20)
         self.b_sw.clicked.connect(lambda: self.clock.start("study", course["id"], "stopwatch",

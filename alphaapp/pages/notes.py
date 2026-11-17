@@ -5,7 +5,7 @@ from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtWidgets import (QWidget, QHBoxLayout, QVBoxLayout, QLineEdit, QPlainTextEdit, QComboBox, QScrollArea,
                              QFrame, QLabel)
 
-from ..components import Card, Row, _clear_layout
+from ..components import Card, Row, clear_layout
 from ..i18n import t, fmt_stamp
 from ..store import CATEGORIES
 from ..widgets import IconButton
@@ -161,7 +161,7 @@ class NotesPage(QWidget):
         return out
 
     def refresh(self):
-        _clear_layout(self.list_v)
+        clear_layout(self.list_v)
         notes = self._filtered()
         for n in notes:
             body = (n.get("body") or "").strip().replace("\n", " ")

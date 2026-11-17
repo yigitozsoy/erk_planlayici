@@ -202,6 +202,14 @@ def tinted_logo(height: int, dpr: float = 1.0, role: str = "text"):
     return out
 
 
+def spin_img(kind):
+    """Sayı kutusu oku (assets/spin_*.svg); QSS url'si için düz eğik çizgili yol."""
+    from .config import asset
+    from PyQt6.QtGui import QColor
+    tone = "light" if QColor(pal()["bg"]).lightness() > 128 else "dark"
+    return asset(f"spin_{kind}_{tone}.svg").replace("\\", "/")
+
+
 def stylesheet() -> str:
     c = pal()
     dark = current_name() == "dark"
@@ -393,7 +401,13 @@ QLineEdit:focus, QSpinBox:focus, QDoubleSpinBox:focus, QComboBox:focus, QDateEdi
 QLineEdit:disabled, QDateEdit:disabled, QTimeEdit:disabled {{ color: {c['text3']}; }}
 QLineEdit#Search {{ border-radius: 18px; padding: 6px 14px; }}
 QTimeEdit::up-button, QTimeEdit::down-button {{ width: 0px; border: none; }}
-QSpinBox::up-button, QSpinBox::down-button {{ width: 16px; border: none; background: transparent; }}
+QSpinBox::up-button, QSpinBox::down-button, QDoubleSpinBox::up-button, QDoubleSpinBox::down-button {{
+    width: 18px; border: none; background: transparent; border-radius: 4px;
+}}
+QSpinBox::up-button:hover, QSpinBox::down-button:hover,
+QDoubleSpinBox::up-button:hover, QDoubleSpinBox::down-button:hover {{ background: {c['divider']}; }}
+QSpinBox::up-arrow, QDoubleSpinBox::up-arrow {{ image: url("{spin_img('up')}"); width: 12px; height: 11px; }}
+QSpinBox::down-arrow, QDoubleSpinBox::down-arrow {{ image: url("{spin_img('down')}"); width: 12px; height: 11px; }}
 QDateEdit::drop-down {{ border: none; width: 22px; }}
 QComboBox::drop-down {{ border: none; width: 22px; }}
 QComboBox QAbstractItemView {{

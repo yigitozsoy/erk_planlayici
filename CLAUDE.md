@@ -10,6 +10,7 @@ gri vurgu / AMOLED siyah, mor yok, YouTube görünümü, önce çalıştırıp d
 ```powershell
 python main.py                    # kaynaktan
 python tests/smoke_test.py        # ~10 sn, örnek veriyle tüm sayfalar + formlar (gerçek veriye dokunmaz)
+                                  # kurulum tests/smoke_base.py, adımlar tests/steps/*.py (sıra steps/__init__)
 python tests/smoke_test.py --shots <klasör>   # her sayfanın koyu/açık PNG'si
 python -m pyflakes alphaapp tests # temiz olmalı
 powershell -ExecutionPolicy Bypass -File packaging\build.ps1   # build\dist\alpha\alpha.exe (~1 dk)
@@ -39,11 +40,15 @@ Belgeler\alpha'ya yazarsın.
 alphaapp/
   app.py          tek örnek (QLocalServer), dil/yerel ayar, excepthook (hata → APP_DIR\error.log)
   config.py       yollar, Prefs (preferences.json)
-  store.py        tüm veriler tek JSON (data.json), 400 ms gecikmeli kayıt, günlük yedek (backups/, 14 gün),
+  store.py        tüm veriler tek JSON (data.json), 400 ms gecikmeli kayıt, günlük yedek (backups/, 14 gün; prefs
+                  backup_dir seçiliyse oraya da, yoksa atlanır; Seçenekler > Veriler > Şimdi yedekle = backup_now),
                   sorgular: deadlines(), routine_for(), month_totals(), course_average() …
-  forms.py        şemaya dayalı ekle/düzenle penceresi (schema(coll)), edit_item / delete_item (geri al) / item_menu
-  components.py   Page (görünür olunca yenilenir), Card, Row, StatTile, TileGrid, ResponsiveRow, grafikler
-  theme.py        gamma paletleri + kart/rozet stilleri · i18n.py (tr, en) + biçimler
+  forms/          paket (dışa verim __init__'te, import'lar `from .forms import X` olarak kalır): schemas (schema(coll),
+                  defaults), fields (alan bileşenleri), dialog (FormDialog), actions (edit_item / delete_item / item_menu)
+  components/     paket, aynı düzen: base (Page görünür olunca yenilenir, Card, Row, button / sub_label /
+                  clear_layout = layout boşaltmanın TEK yeri), stats, charts (ChipBar dahil), month_calendar, daygrid, flow
+  theme.py        gamma paletleri + kart/rozet stilleri; sayı kutusu okları assets/spin_*.svg (theme.spin_img)
+  i18n.py         t() + biçimler; metinler alphaapp/locales/tr.json, en.json (spec datas'ta). Yeni anahtar iki dosyaya da
   icons.py        Material yolları; kategori ikonları cat_education / cat_work / cat_sport takma adları (tek satırda değişir)
                   Bugün'deki ay takvimi: components.MonthCalendar + store.items_between(a, b)
   kareler         components.DayGrid (GitHub tarzı). span=(2, 1): son 2 ay + önümüzdeki 1 ay; kareler KARE, en
@@ -101,7 +106,9 @@ alphaapp/
                   MonthCalendar) birebir HTML kopyası: yalnızca Bugün + Haftalık program. Metinler, ikon yolları,
                   hafta/ay adları anlık görüntüyle (web.build_snapshot v2: days[blocks, prog], tasks, deadlines, cal,
                   str, icons) gelir. Masaüstünde bu iki sayfa değişirse web.py + index.html'i de güncelle.
-  window.py       çerçevesiz pencere + Snap (delta'dan), sol menü, hızlı ekle (Ctrl+N)
+  window.py       çerçevesiz pencere + Snap (delta'dan), sol menü, hızlı ekle (Ctrl+N). Sayfalar tembel:
+                  pages.build_pages → LazyPages (ilk win.pages[k]'de kurulur; values()/items() yalnızca kurulmuşlar;
+                  içe aktarmalar açık yazılı ki PyInstaller görsün). Kurulmamış sayfayı values() ile arama.
   navmenu.py      sol menü düzeni (sağ tık > Menüyü düzenle): prefs nav_layout [{k, h}] ("-" ayırıcı), nav_names
                   (i18n.t nav_/cat_ anahtarlarında da kullanılır → kategori adı her yerde değişir), custom_cats
                   [{id "c_xxxxxx", name, icon}] → pages/category.CategoryPage (window._ensure_pages). Varsayılan = DEFAULT.
@@ -117,7 +124,8 @@ alphaapp/
   not kartı      grades_view.GradesCard: ExamBar (sınav ağırlığı kadar parça, not dolumu), kalem = sınav çipleri, ⋮ = Dönemi
                   bitir, Hedef AGNO sabit (prefs agno_goal). Sınav türleri grades.EXAM_KINDS (kayıtta Türkçe ad, ekranda
                   dile göre; "Midterm 2" → "Vize 2"). store.add_exam aynı ders + türdeki boş sınavı doldurur (yenisini açmaz).
-  grades.py       ANO / AGNO = kullanıcının Excel'i (lectures_for_alpha.xlsx, .gitignore'da). transcript koleksiyonu,
+  grades.py       ANO / AGNO = kullanıcının Excel'i (lectures_for_alpha.xlsx, .gitignore'da). Harf → puan grades.points()
+                  (varsayılan YÖK, prefs grade_points farklılar; Seçenekler > Genel > Not sistemi). transcript koleksiyonu,
                   dersler letter / guess / target / retake. Excel'in "*ad*" eşleşmesi yerine tam ad → kod → en kısa
                   içeren. read_transcript_xlsx openpyxl'siz (zip+XML), "AGNO" satırında durur. Sonuçlar Excel'le
                   birebir aynı. pages/grades_view.py: GradesCard + TranscriptCard (Eğitim).
@@ -195,6 +203,8 @@ Koleksiyonlar `store.py` başındaki belge metninde. Kategori: education, work, 
   `theme.changed.connect(lambda: self.update())` silinen widget'ta çöker.
 - Kart içeriği her yenilemede baştan kurulur: `_clear_layout` widget'ı gizleyip ebeveynden ayırır, yoksa eski satırlar
   üst üste çizilir.
+- Hesaplanan sayıların (1RM, seviye, yağ oranı, denge puanı) üzerine gelince nasıl hesaplandığı yazar
+  (sport_ui.e1rm_tip / level_tip, i18n tip_*); yeni hesaplı sayı eklersen ipucunu da ekle.
 - Uzun satır metni `ElideLabel` ile "…" olur; düz QLabel sayfayı yatayda taşırır.
 - QPushButton metninde `&` kısayol işaretidir → `&&` yaz.
 - Heredoc ile Python yaması yazarken `\n` gerçek satır sonuna dönüşüyor; çok satırlı değişiklikte Edit kullan.

@@ -14,7 +14,7 @@ from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdi
                              QMessageBox, QInputDialog, QCompleter)
 
 from .. import fitness
-from ..components import Card, Row, ChipBar
+from ..components import Card, Row, ChipBar, button, sub_label
 from ..config import prefs, day_today
 from ..forms import edit_item, bind_row
 from ..i18n import t, fmt_num, fmt_day, fmt_day_month
@@ -74,8 +74,7 @@ class _ExerciseBlock(QFrame):
         rm.clicked.connect(lambda: dlg.remove_block(self))
         head.addWidget(rm)
         v.addLayout(head)
-        self.hint = QLabel("")
-        self.hint.setObjectName("RowSub")
+        self.hint = sub_label("")
         v.addWidget(self.hint)
         self.grid = QVBoxLayout()
         self.grid.setSpacing(4)
@@ -102,8 +101,7 @@ class _ExerciseBlock(QFrame):
         h = QHBoxLayout(row)
         h.setContentsMargins(0, 0, 0, 0)
         h.setSpacing(8)
-        n = QLabel(str(len(self.rows) + 1))
-        n.setObjectName("RowSub")
+        n = sub_label(str(len(self.rows) + 1))
         n.setFixedWidth(18)
         reps = QSpinBox()
         reps.setRange(0, 100)
@@ -117,8 +115,7 @@ class _ExerciseBlock(QFrame):
         kg.setValue(float(w or 0))
         kg.setSuffix(" " + t("wd_kg"))
         kg.setFixedWidth(110)
-        x = QLabel("×")
-        x.setObjectName("RowSub")
+        x = sub_label("×")
         rm = IconButton("close", t("delete"), 26, 16)
         h.addWidget(n)
         h.addWidget(reps)
@@ -199,15 +196,13 @@ class WorkoutDialog(ThemedDialog):
         self.blocks = []
 
         tools = QHBoxLayout()
-        add = QPushButton(t("wd_add_ex"))
-        add.setObjectName("Pill")
+        add = button(t("wd_add_ex"))
         theme.icon(add, "add", "text", 18)
         add.setCursor(Qt.CursorShape.PointingHandCursor)
         add.clicked.connect(lambda: self.add_block())
         tools.addWidget(add)
         tools.addStretch(1)
-        self.summary = QLabel("")
-        self.summary.setObjectName("RowSub")
+        self.summary = sub_label("")
         tools.addWidget(self.summary)
         v.addLayout(tools)
         self.note = QLineEdit(data.get("note") or "")
@@ -217,8 +212,7 @@ class WorkoutDialog(ThemedDialog):
         bar.addStretch(1)
         cancel = QPushButton(t("cancel"))
         cancel.clicked.connect(self.reject)
-        save = QPushButton(t("save"))
-        save.setObjectName("Primary")
+        save = button(t("save"), kind="Primary")
         save.clicked.connect(self._save)
         bar.addWidget(cancel)
         bar.addWidget(save)
@@ -330,8 +324,7 @@ class TemplateDialog(ThemedDialog):
         self.rows = []
         for e in (item or {}).get("exercises") or [{}]:
             self.add_row(e)
-        add = QPushButton(t("wd_add_ex"))
-        add.setObjectName("Pill")
+        add = button(t("wd_add_ex"))
         theme.icon(add, "add", "text", 18)
         add.setCursor(Qt.CursorShape.PointingHandCursor)
         add.clicked.connect(lambda: self.add_row({}))
@@ -344,8 +337,7 @@ class TemplateDialog(ThemedDialog):
         bar.addStretch(1)
         cancel = QPushButton(t("cancel"))
         cancel.clicked.connect(self.reject)
-        save = QPushButton(t("save"))
-        save.setObjectName("Primary")
+        save = button(t("save"), kind="Primary")
         save.clicked.connect(self._save)
         bar.addWidget(cancel)
         bar.addWidget(save)
@@ -491,6 +483,21 @@ class LineChart(QWidget):
 
 
 # ============================================================ kartlar
+def e1rm_tip(b):
+    """Rekor kaydının 1RM'si nasıl hesaplandı (Epley)."""
+    return t("tip_e1rm", w=fmt_num(b["w"], 1), r=b["r"], e=fmt_num(b["e1rm"], 1))
+
+
+def level_tip(name, e1rm, bw):
+    """Seviye neye göre: 1RM / vücut ağırlığı ve bu hareketin kg cinsinden eşikleri."""
+    std = fitness.standard(name)
+    bw = bw or 75.0
+    if not std:
+        return ""
+    a, b, c, d = (fmt_num(x * std * bw, 0) for x in fitness.LEVELS)
+    return t("tip_level", e=fmt_num(e1rm, 1), bw=fmt_num(bw, 1), x=fmt_num(e1rm / bw, 2), a=a, b=b, c=c, d=d)
+
+
 def _box(title, value, sub="", tip=""):
     box = QWidget()
     box.setObjectName("CardToday")
@@ -507,15 +514,6 @@ def _box(title, value, sub="", tip=""):
         box.setToolTip(tip)
     return box
 
-
-def _clear(lay):
-    while lay.count():
-        it = lay.takeAt(0)
-        w = it.widget()
-        if w is not None:
-            w.hide()
-            w.setParent(None)
-            w.deleteLater()
 
 
 class TemplatesCard(Card):
@@ -534,9 +532,7 @@ class TemplatesCard(Card):
             sub = t("tpl_sub", n=n, s=s) + " · " + t("lvl_%d" % lvl) + "  " + "●" * lvl + "○" * (5 - lvl)
             mus_txt = focus_text(tp.get("exercises") or [])
             r = Row(tp.get("name", ""), sub + (f" · {mus_txt}" if mus_txt else ""), icon="cat_sport")
-            b = QPushButton(t("tpl_start"))
-            b.setObjectName("Pill")
-            b.setCursor(Qt.CursorShape.PointingHandCursor)
+            b = button(t("tpl_start"))
             b.setFocusPolicy(Qt.FocusPolicy.NoFocus)
             b.clicked.connect(lambda _=False, tp=tp: open_workout(self.win, template=tp))
             r.layout().addWidget(b)
@@ -573,8 +569,7 @@ class RecordsCard(Card):
         self.add(bar)
         series = fitness.progress_series(self.store, sel)
         if series:
-            lb = QLabel(t("pr_chart", n=sel))
-            lb.setObjectName("RowSub")
+            lb = sub_label(t("pr_chart", n=sel))
             self.add(lb)
             ch = LineChart(150, "kg")
             ch.set_data(series)
@@ -585,8 +580,10 @@ class RecordsCard(Card):
             if b:
                 rows.append((b["e1rm"], n, b))
         for _v, n, b in sorted(rows, key=lambda x: -x[0])[:8]:
-            self.add(Row(n, t("pr_row", w=fmt_num(b["w"]), r=b["r"], e=fmt_num(b["e1rm"], 1)),
-                         value=fmt_day_month(b["date"], short=True), icon="cat_sport"))
+            r = Row(n, t("pr_row", w=fmt_num(b["w"]), r=b["r"], e=fmt_num(b["e1rm"], 1)),
+                    value=fmt_day_month(b["date"], short=True), icon="cat_sport")
+            r.setToolTip(e1rm_tip(b) + "\n" + level_tip(n, b["e1rm"], fitness.body_weight(self.store)))
+            self.add(r)
 
 
 class BodyCard(Card):
@@ -625,8 +622,7 @@ class BodyCard(Card):
             self.add(ch)
         fpts = [(parse_date(b["date"]), fitness.fat_of(b)) for b in rows if fitness.fat_of(b)]
         if len(fpts) > 1:
-            lb = QLabel(t("body_fat"))
-            lb.setObjectName("RowSub")
+            lb = sub_label(t("body_fat"))
             self.add(lb)
             fc = LineChart(110, "%")
             fc.set_data(fpts)

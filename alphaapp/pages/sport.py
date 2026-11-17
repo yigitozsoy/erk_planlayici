@@ -7,7 +7,7 @@ from PyQt6.QtWidgets import (QHBoxLayout, QVBoxLayout, QLabel, QWidget, QSpinBox
                              QLineEdit, QGridLayout)
 
 from ..config import day_today
-from ..components import (Page, Card, Row, StatTile, TileGrid, BarChart, HBars, WeekStrip, Ring,
+from ..components import (button, sub_label, Page, Card, Row, StatTile, TileGrid, BarChart, HBars, WeekStrip, Ring,
                           FlowLayout)
 from ..widgets import IconButton
 from ..pickers import DateButton
@@ -60,8 +60,7 @@ class SportPage(Page):
         self.strip = WeekStrip(WEEKDAYS_SHORT())
         right.addWidget(self.strip)
         gl = QHBoxLayout()
-        lbl = QLabel(t("weekly_goal"))
-        lbl.setObjectName("RowSub")
+        lbl = sub_label(t("weekly_goal"))
         self.goal = QSpinBox()
         self.goal.setRange(1, 7)
         self.goal.setSuffix(" " + t("days_per_week"))
@@ -230,9 +229,7 @@ class SportPage(Page):
         v = QVBoxLayout(dlg)
         v.setContentsMargins(22, 20, 22, 18)
         v.setSpacing(12)
-        info = QLabel(t("sport_break_info"))
-        info.setObjectName("RowSub")
-        info.setWordWrap(True)
+        info = sub_label(t("sport_break_info"), wrap=True)
         v.addWidget(info)
         g = QGridLayout()
         g.setHorizontalSpacing(12)
@@ -271,8 +268,7 @@ class SportPage(Page):
         bar.addStretch(1)
         cancel = QPushButton(t("cancel"))
         cancel.clicked.connect(dlg.reject)
-        ok = QPushButton(t("save"))
-        ok.setObjectName("Primary")
+        ok = button(t("save"), kind="Primary")
         ok.setDefault(True)
         ok.clicked.connect(lambda: (result.update(op="save"), dlg.accept()))
         bar.addWidget(cancel)

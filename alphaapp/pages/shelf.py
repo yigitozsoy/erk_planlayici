@@ -15,9 +15,10 @@ import zlib
 from PyQt6.QtCore import Qt, QRectF, QPointF, QTimer, pyqtSignal, QElapsedTimer, QEvent
 from PyQt6.QtGui import (QPainter, QColor, QFont, QFontMetrics, QPainterPath, QTransform, QPolygonF,
                          QLinearGradient, QRadialGradient, QConicalGradient, QPen, QImage)
-from PyQt6.QtWidgets import QWidget, QSizePolicy, QPushButton, QHBoxLayout
+from PyQt6.QtWidgets import QWidget, QSizePolicy, QHBoxLayout
 
 from .. import library
+from ..components import button
 from ..config import IMAGES_DIR
 from ..i18n import t
 from ..theme import theme, qcolor
@@ -359,19 +360,13 @@ class MediaViewer(QWidget):
         h.setSpacing(8)
         links = [v for v in ((m.get("link"),) + tuple((m.get("links") or {}).values())) if v]
         if links:
-            b = QPushButton(t("lib_open_link"))
-            b.setObjectName("Pill")
-            b.setCursor(Qt.CursorShape.PointingHandCursor)
+            b = button(t("lib_open_link"))
             b.clicked.connect(lambda: __import__("webbrowser").open(links[0]))
             h.addWidget(b)
-        ed = QPushButton(t("edit"))
-        ed.setObjectName("Pill")
-        ed.setCursor(Qt.CursorShape.PointingHandCursor)
+        ed = button(t("edit"))
         ed.clicked.connect(self._edit)
         h.addWidget(ed)
-        cl = QPushButton(t("lib_close"))
-        cl.setObjectName("Primary")
-        cl.setCursor(Qt.CursorShape.PointingHandCursor)
+        cl = button(t("lib_close"), kind="Primary")
         cl.clicked.connect(self.close_anim)
         h.addWidget(cl)
         self.btns.adjustSize()

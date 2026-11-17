@@ -7,7 +7,7 @@ from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtWidgets import QWidget, QHBoxLayout, QVBoxLayout, QLabel
 
 from .. import markets
-from ..components import Card
+from ..components import Card, sub_label
 from ..forms import edit_item
 from ..i18n import t, fmt_money, fmt_num, is_tr
 from ..library import Job
@@ -48,8 +48,7 @@ class AssetsCard(Card):
         super().__init__(t("assets_title"), t("assets_sub"), add_tip=t("add_investment"))
         self.win, self.store = win, win.store
         self.add_clicked.connect(lambda: edit_item(win, "investments"))
-        self.when = QLabel("")
-        self.when.setObjectName("RowSub")
+        self.when = sub_label("")
         self.head_widget(self.when)
         self.btn = IconButton("swap", t("assets_refresh"), 32, 20)
         self.btn.clicked.connect(lambda: self.fetch(force=True))
@@ -137,9 +136,7 @@ class AssetsCard(Card):
                 h.addWidget(_box(markets.label(code, tr), "—", ""), 1)
         self.add(top)
         if not any(markets.live_value(x, q) is not None for x in self.store.all("investments")):
-            hint = QLabel(t("assets_empty"))
-            hint.setObjectName("RowSub")
-            hint.setWordWrap(True)
+            hint = sub_label(t("assets_empty"), wrap=True)
             self.add(hint)
 
         if not offline():

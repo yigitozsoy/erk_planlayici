@@ -12,7 +12,7 @@ from PyQt6.QtGui import QPainter, QAction, QActionGroup, QGuiApplication, QColor
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QMenu
 
 from .config import day_today
-from .components import Row, ProgressBar, ElideLabel, _clear_layout
+from .components import Row, ProgressBar, ElideLabel, clear_layout
 from .config import prefs
 from .forms import edit_item
 from .i18n import t, due_badge, WEEKDAYS_LONG, MONTHS_LONG
@@ -231,7 +231,7 @@ class DeskWidget(QWidget):
         self.title.setText(t("today") + ", " + WEEKDAYS_LONG()[td.weekday()])
         intention = (s.day(td) or {}).get("intention", "")
         self.sub.setText(f"{td.day} {MONTHS_LONG()[td.month - 1]}" + (f"  ·  “{intention}”" if intention else ""))
-        _clear_layout(self.body)
+        clear_layout(self.body)
         on = set(prefs.get("desk_sections", list(SECTIONS)))
         agenda = today_agenda(s, td)
 

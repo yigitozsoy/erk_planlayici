@@ -16,11 +16,11 @@ from datetime import timedelta
 from PyQt6.QtCore import Qt, pyqtSignal, QRectF, QPointF, QTimer
 from PyQt6.QtGui import (QPainter, QPen, QColor, QFont, QFontMetrics, QLinearGradient, QPainterPath, QPixmap,
                          QImageReader, QKeySequence, QGuiApplication)
-from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QSizePolicy
+from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QSizePolicy
 
 from .. import icons
 from ..config import day_today, prefs, IMAGES_DIR
-from ..components import Page, Card, ChipBar, Row
+from ..components import Page, Card, ChipBar, Row, clear_layout, button, sub_label
 from ..forms import edit_item, bind_row, GOAL_HORIZONS, AREA_ICONS
 from ..i18n import t, fmt_day
 from ..store import LIFE_AREAS, parse_date, life_area
@@ -560,7 +560,8 @@ class BalanceView(QWidget):
             k = self.rects[h][1] if h is not None else None
             if k and k != "_sum":
                 ps = self.report.get(k, {}).get("parts") or []
-                self.setToolTip("\n".join(s for s, _f in ps) or t("bal_no_data_hint"))
+                self.setToolTip("\n".join(s for s, _f in ps) + "\n\n" + t("bal_tip_method") if ps
+                                else t("bal_no_data_hint"))
             else:
                 self.setToolTip("")
             self.update()
@@ -746,21 +747,15 @@ class GoalsPage(Page):
 
         # boş durum
         self.c_empty = Card(t("goals_empty_title"))
-        lbl = QLabel(t("goals_empty"))
-        lbl.setObjectName("RowSub")
-        lbl.setWordWrap(True)
+        lbl = sub_label(t("goals_empty"), wrap=True)
         self.c_empty.add(lbl)
         bar = QWidget()
         bl = QHBoxLayout(bar)
         bl.setContentsMargins(0, 12, 0, 4)
         bl.setSpacing(8)
-        b1 = QPushButton(t("goals_sample"))
-        b1.setObjectName("Primary")
-        b1.setCursor(Qt.CursorShape.PointingHandCursor)
+        b1 = button(t("goals_sample"), kind="Primary")
         b1.clicked.connect(self._add_sample)
-        b2 = QPushButton(t("add_goal"))
-        b2.setObjectName("Pill")
-        b2.setCursor(Qt.CursorShape.PointingHandCursor)
+        b2 = button(t("add_goal"))
         b2.clicked.connect(lambda: edit_item(win, "goals", preset={"horizon": "life"}))
         bl.addWidget(b1)
         bl.addWidget(b2)
@@ -879,16 +874,11 @@ class GoalsPage(Page):
         areas = [a for a in LIFE_AREAS if any(life_area(g.get("area")) == a for g in pins)]
         if self.area not in areas:
             self.area = "all"
-        while self.filter_lay.count():
-            w = self.filter_lay.takeAt(0).widget()
-            if w is not None:
-                w.hide()
-                w.deleteLater()
+        clear_layout(self.filter_lay)
         self.filter = ChipBar([("all", t("all"))] + [(a, area_name(a)) for a in areas], self.area)
         self.filter.changed.connect(self._set_area)
         self.filter_lay.addWidget(self.filter, 1)
-        hint = QLabel(t("board_hint"))
-        hint.setObjectName("RowSub")
+        hint = sub_label(t("board_hint"))
         self.filter_lay.addWidget(hint)
         if self.area != "all":
             pins = [g for g in pins if life_area(g.get("area")) == self.area]

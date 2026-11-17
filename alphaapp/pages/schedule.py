@@ -7,7 +7,7 @@ from PyQt6.QtGui import QDrag, QAction, QCursor
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QSizePolicy, QApplication, QMenu
 
 from ..config import day_today
-from ..components import Page, Card, ResponsiveRow
+from ..components import Page, Card, ResponsiveRow, sub_label
 from ..config import prefs
 from ..forms import edit_item, item_menu
 from ..i18n import t, WEEKDAYS_LONG, fmt_day_month, fmt_money
@@ -62,9 +62,7 @@ class Block(QWidget):
         b.setTextFormat(Qt.TextFormat.PlainText)
         v.addWidget(b)
         if sub:
-            c = QLabel(sub)
-            c.setObjectName("RowSub")
-            c.setWordWrap(True)
+            c = sub_label(sub, wrap=True)
             v.addWidget(c)
 
     def mousePressEvent(self, e):
@@ -138,8 +136,7 @@ class SchedulePage(Page):
                         sw = QLabel()
                         sw.setFixedSize(10, 10)
                         sw.setStyleSheet(f"background: {hx}; border-radius: 5px;")
-                        kl = QLabel(t("bk_kind_" + k))
-                        kl.setObjectName("RowSub")
+                        kl = sub_label(t("bk_kind_" + k))
                         th.addWidget(sw)
                         th.addWidget(kl)
                         th.addSpacing(6)
@@ -295,6 +292,18 @@ class SchedulePage(Page):
         m.addAction(QAction(t("cancel"), m))
         ch = m.exec(QCursor.pos())
         return "once" if ch is a_once else "week" if ch is a_week else None
+
+    def resizeEvent(self, e):
+        super().resizeEvent(e)
+        self._fit_weeks()
+
+    def _fit_weeks(self):
+        """Dar pencerede günler alt alta dizilir; iki hafta 14 uzun kart olmasın diye yalnızca ilk hafta görünür
+        (öteki haftalara oklarla geçilir)."""
+        narrow = self.viewport().width() - 56 < self.rows[0].bp
+        for k in range(1, self.weeks):
+            self.week_lbls[k].setVisible(not narrow)
+            self.rows[k].setVisible(not narrow)
 
     def _shift(self, d, reset=False):
         self.offset = 0 if reset else self.offset + d

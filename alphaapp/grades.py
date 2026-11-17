@@ -23,10 +23,25 @@ import re
 import zipfile
 from xml.etree import ElementTree as ET
 
+from .config import prefs
+
 POINTS = {"AA": 4.0, "BA": 3.5, "BB": 3.0, "CB": 2.5, "CC": 2.0, "DC": 1.5, "DD": 1.0, "FD": 0.5, "FF": 0.0,
           "D": 0.0, "NA": 0.0}
 LETTERS = ("AA", "BA", "BB", "CB", "CC", "DC", "DD", "FD", "FF")
 EXTRA_LETTERS = ("D", "NA")      # devamsız / girmedi: 0 sayılır
+
+
+def points():
+    """Harf → puan tablosu. Varsayılan YÖK 4'lük sistemi; okulun tablosu farklıysa Seçenekler'den değişir
+    (prefs grade_points yalnızca varsayılandan farklı harfleri tutar)."""
+    out = dict(POINTS)
+    for k, v in (prefs.get("grade_points") or {}).items():
+        if k in out:
+            try:
+                out[k] = float(v)
+            except (TypeError, ValueError):
+                pass
+    return out
 
 
 # Sınav türleri: (anahtar, Türkçe ad, İngilizce ad, eşanlamlılar). Kayıtta Türkçe ad tutulur, ekranda dile göre
@@ -87,7 +102,7 @@ def find_exam_kind(text):
 
 def letter_kind(letter):
     """Rozet rengi: BB ve üstü yeşil, DC / DD turuncu (koşullu geçer), FD / FF / D / NA kırmızı."""
-    p = POINTS.get((letter or "").upper())
+    p = points().get((letter or "").upper())
     if p is None:
         return None
     return "good" if p >= 3 else "warn" if p >= 1 else "bad"
@@ -103,8 +118,9 @@ def point(letter):
     s = str(letter).strip().upper()
     if not s or s == "XX":
         return None
-    if s in POINTS:
-        return POINTS[s]
+    pts = points()
+    if s in pts:
+        return pts[s]
     try:
         return float(s.replace(",", "."))
     except ValueError:

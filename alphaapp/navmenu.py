@@ -12,6 +12,7 @@ from PyQt6.QtWidgets import (QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QLin
                              QMenu, QMessageBox, QFrame)
 
 from .config import prefs
+from .components import clear_layout, button, sub_label
 from .i18n import t, S
 from . import icons
 from .theme import theme, color
@@ -158,9 +159,7 @@ class NavEditor(ThemedDialog):
         tools = QHBoxLayout()
         for text, ic, fn in ((t("nav_add_cat"), "add", self._add_cat), (t("nav_add_divider"), None, self._add_div),
                              (t("nav_reset"), None, self._reset)):
-            b = QPushButton(text)
-            b.setObjectName("Pill")
-            b.setCursor(Qt.CursorShape.PointingHandCursor)
+            b = button(text)
             if ic:
                 theme.icon(b, ic, "text", 18)
             b.clicked.connect(fn)
@@ -172,8 +171,7 @@ class NavEditor(ThemedDialog):
         bottom.addStretch(1)
         cancel = QPushButton(t("cancel"))
         cancel.clicked.connect(self.reject)
-        save = QPushButton(t("save"))
-        save.setObjectName("Primary")
+        save = button(t("save"), kind="Primary")
         save.setDefault(True)
         save.clicked.connect(self._save)
         bottom.addWidget(cancel)
@@ -193,12 +191,7 @@ class NavEditor(ThemedDialog):
         return (c.get("icon") or "star") if c else icon(key)
 
     def _build(self):
-        while self.list.count():
-            w = self.list.takeAt(0).widget()
-            if w is not None:
-                w.hide()
-                w.setParent(None)
-                w.deleteLater()
+        clear_layout(self.list)
         for i, (k, hidden) in enumerate(self.items):
             self.list.addWidget(self._row(i, k, hidden))
         self.list.addStretch(1)
@@ -385,9 +378,7 @@ class SectionsDialog(ThemedDialog):
         h = QLabel(t("sec_title"))
         h.setStyleSheet("font-size: 18px; font-weight: 700;")
         v.addWidget(h)
-        sub = QLabel(t("sec_sub_first") if first else t("sec_sub"))
-        sub.setObjectName("RowSub")
-        sub.setWordWrap(True)
+        sub = sub_label(t("sec_sub_first") if first else t("sec_sub"), wrap=True)
         v.addWidget(sub)
         pr = QHBoxLayout()
         pr.setSpacing(6)
@@ -420,9 +411,7 @@ class SectionsDialog(ThemedDialog):
             tv.setSpacing(0)
             a = QLabel(label(k))
             a.setObjectName("RowTitle")
-            d = QLabel(t("sec_d_" + k))
-            d.setObjectName("RowSub")
-            d.setWordWrap(True)
+            d = sub_label(t("sec_d_" + k), wrap=True)
             tv.addWidget(a)
             tv.addWidget(d)
             hl.addLayout(tv, 1)
@@ -431,19 +420,15 @@ class SectionsDialog(ThemedDialog):
             self.sw[k] = sw
             g.addWidget(box, i // 2, i % 2)
         v.addLayout(g)
-        note = QLabel(t("sec_note"))
-        note.setObjectName("RowSub")
-        note.setWordWrap(True)
+        note = sub_label(t("sec_note"), wrap=True)
         v.addWidget(note)
         foot = QHBoxLayout()
         foot.addStretch(1)
         if not first:
-            c = QPushButton(t("cancel"))
-            c.setObjectName("Flat")
+            c = button(t("cancel"), kind="Flat")
             c.clicked.connect(self.reject)
             foot.addWidget(c)
-        ok = QPushButton(t("sec_ok"))
-        ok.setObjectName("Primary")
+        ok = button(t("sec_ok"), kind="Primary")
         ok.setDefault(True)
         ok.clicked.connect(self._save)
         foot.addWidget(ok)

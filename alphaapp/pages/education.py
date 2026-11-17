@@ -4,7 +4,7 @@ from datetime import date
 from PyQt6.QtWidgets import QLabel, QWidget, QVBoxLayout
 
 from ..config import day_today
-from ..components import Page, Card, Row, StatTile, TileGrid, ProgressBar, ResponsiveRow
+from ..components import Page, Card, Row, StatTile, TileGrid, ProgressBar, ResponsiveRow, clear_layout, sub_label
 from ..forms import edit_item, bind_row, item_menu
 from ..i18n import t, due_badge, fmt_day, fmt_num, is_tr
 from ..store import parse_date, num
@@ -55,10 +55,7 @@ class EducationPage(Page):
         courses = s.all("courses")
 
         # --- dersler
-        while self.courses_v.count():
-            it = self.courses_v.takeAt(0)
-            if it.widget():
-                it.widget().deleteLater()
+        clear_layout(self.courses_v)
         below = 0
         avgs = []
         cards = []
@@ -200,8 +197,7 @@ class EducationPage(Page):
         info_txt = t("study_info", w=sum(1 for d in days if ws <= d <= ws + timedelta(days=6)), s=cur, n=len(days))
         if wk_min:
             info_txt += " · " + t("study_week_time", h=int(wk_min // 60), m=int(wk_min % 60))
-        head = QLabel(info_txt)
-        head.setObjectName("RowSub")
+        head = sub_label(info_txt)
         head.setContentsMargins(4, 10, 0, 0)
         card.add(head)
         grid = DayGrid(WEEKDAYS_SHORT(), MONTHS_SHORT(), span=(2, 1))

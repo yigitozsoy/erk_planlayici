@@ -11,7 +11,7 @@ from PyQt6.QtGui import QPainter, QPainterPath, QPixmap
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QGridLayout, QPushButton
 
 from .. import icons
-from ..components import Card, ChipBar
+from ..components import Card, ChipBar, clear_layout, sub_label
 from ..config import IMAGES_DIR, day_today
 from ..forms import edit_item, item_menu
 from ..i18n import t, fmt_money
@@ -120,8 +120,7 @@ class WishCard(QWidget):
             from ..store import parse_date
             sub.append(fmt_day(parse_date(w["bought_at"])))
         if any(sub):
-            s = QLabel(" · ".join(x for x in sub if x))
-            s.setObjectName("RowSub")
+            s = sub_label(" · ".join(x for x in sub if x))
             v.insertWidget(2, s)
 
     def set_width(self, wd):
@@ -199,17 +198,12 @@ class WishlistCard(Card):
         self.grid = WishGrid()
         self.layout().addWidget(self.chips_host)
         self.layout().addWidget(self.grid)
-        self.empty_lbl = QLabel(t("no_wish"))
-        self.empty_lbl.setObjectName("RowSub")
+        self.empty_lbl = sub_label(t("no_wish"))
         self.layout().addWidget(self.empty_lbl)
         self.jobs = []
 
     def _chips(self, items):
-        while self.chips_lay.count():
-            it = self.chips_lay.takeAt(0)
-            if it.widget():
-                it.widget().setParent(None)
-                it.widget().deleteLater()
+        clear_layout(self.chips_lay)
         cats = sorted({(w.get("category") or "").strip() for w in items if not w.get("bought")} - {""},
                       key=str.lower)
         opts = [("all", t("all"))] + [("c:" + c, c) for c in cats]

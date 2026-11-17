@@ -12,11 +12,12 @@ from PyQt6.QtWidgets import QWidget, QHBoxLayout, QVBoxLayout, QLabel, QPushButt
 
 from .. import fitness
 from ..body3d import body_view
-from ..components import Card, Row, ChipBar, HBars, FlowLayout
+from ..components import Card, Row, ChipBar, HBars, FlowLayout, clear_layout, sub_label
 from ..config import prefs, day_today
 from ..forms import edit_item
 from ..i18n import t, fmt_num, fmt_day_month
 from ..theme import theme
+from .sport_ui import level_tip
 
 MODES = ("dev", "week", "mine", "pop")
 
@@ -24,15 +25,6 @@ MODES = ("dev", "week", "mine", "pop")
 def mus(m):
     return t("mus_" + m)
 
-
-def _clear(lay):
-    while lay.count():
-        it = lay.takeAt(0)
-        w = it.widget()
-        if w is not None:
-            w.hide()
-            w.setParent(None)
-            w.deleteLater()
 
 
 class HeroCard(Card):
@@ -64,8 +56,7 @@ class HeroCard(Card):
             turn.addWidget(b)
         turn.addStretch(1)
         left.addLayout(turn)
-        hint = QLabel(t("hero_drag"))
-        hint.setObjectName("RowSub")
+        hint = sub_label(t("hero_drag"))
         hint.setAlignment(Qt.AlignmentFlag.AlignCenter)
         left.addWidget(hint)
         row.addLayout(left, 5)
@@ -82,9 +73,7 @@ class HeroCard(Card):
         self.head_lbl.setObjectName("RowTitle")
         self.head_lbl.setWordWrap(True)
         right.addWidget(self.head_lbl)
-        self.info = QLabel("")
-        self.info.setObjectName("RowSub")
-        self.info.setWordWrap(True)
+        self.info = sub_label("", wrap=True)
         right.addWidget(self.info)
         self.legend = QWidget()
         lg = QHBoxLayout(self.legend)
@@ -94,8 +83,7 @@ class HeroCard(Card):
         for i in range(5):
             sw = QLabel()
             sw.setFixedSize(12, 12)
-            lb = QLabel(t("dev_%d" % i))
-            lb.setObjectName("RowSub")
+            lb = sub_label(t("dev_%d" % i))
             lg.addWidget(sw)
             lg.addWidget(lb)
             self.legend_lbls.append(sw)
@@ -138,7 +126,7 @@ class HeroCard(Card):
         QTimer.singleShot(0, self.refresh)
 
     def _chips(self, items, current, mode):
-        _clear(self.picks)
+        clear_layout(self.picks)
         for key, label in items:
             b = QPushButton(label.replace("&", "&&"))
             b.setObjectName("Chip")
@@ -159,7 +147,7 @@ class HeroCard(Card):
 
     # ---------------------------------------------------------------- içerik
     def refresh(self):
-        _clear(self.list)
+        clear_layout(self.list)
         self.legend.setVisible(self.mode == "dev")
         getattr(self, "_fill_" + self.mode)()
 
@@ -186,6 +174,7 @@ class HeroCard(Card):
             sub = t("hero_dev_row" if d["main"] else "hero_dev_sec", ex=d["ex"], e=fmt_num(d["e1rm"], 1))
             r = Row(mus(m), sub, value=t("dev_%d" % d["level"]))
             r.setCursor(Qt.CursorShape.ArrowCursor)
+            r.setToolTip(level_tip(d["ex"], d["e1rm"], bw))
             self.list.addWidget(r)
 
     def _fill_week(self):
