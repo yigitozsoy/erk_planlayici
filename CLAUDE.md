@@ -76,7 +76,53 @@ alphaapp/
                   hafta/ay adları anlık görüntüyle (web.build_snapshot v2: days[blocks, prog], tasks, deadlines, cal,
                   str, icons) gelir. Masaüstünde bu iki sayfa değişirse web.py + index.html'i de güncelle.
   window.py       çerçevesiz pencere + Snap (delta'dan), sol menü, hızlı ekle (Ctrl+N)
-  pages/          today, schedule, habits, education, work, sport, social, finance, notes
+  navmenu.py      sol menü düzeni (sağ tık > Menüyü düzenle): prefs nav_layout [{k, h}] ("-" ayırıcı), nav_names
+                  (i18n.t nav_/cat_ anahtarlarında da kullanılır → kategori adı her yerde değişir), custom_cats
+                  [{id "c_xxxxxx", name, icon}] → pages/category.CategoryPage (window._ensure_pages). Varsayılan = DEFAULT.
+                  Kategori silinince kayıtları personal'a geçer. Ctrl+1..9 menü sırasına göre.
+  pages/projects.py Projeler: projects (category work/education, start, due, logo, status) + task.project.
+                  İlerleme store.project_progress (görev varsa biten oranı). Timeline (Gantt), Logo (harf yol olarak
+                  çizilir: Segoe UI Variable kalını pixmap'te bozuk çıkıyor). İş / Eğitim sayfalarında project_row.
+  not kartı      grades_view.GradesCard: ExamBar (sınav ağırlığı kadar parça, not dolumu), kalem = sınav çipleri, ⋮ = Dönemi
+                  bitir, Hedef AGNO sabit (prefs agno_goal). Sınav türleri grades.EXAM_KINDS (kayıtta Türkçe ad, ekranda
+                  dile göre; "Midterm 2" → "Vize 2"). store.add_exam aynı ders + türdeki boş sınavı doldurur (yenisini açmaz).
+  grades.py       ANO / AGNO = kullanıcının Excel'i (lectures_for_alpha.xlsx, .gitignore'da). transcript koleksiyonu,
+                  dersler letter / guess / target / retake. Excel'in "*ad*" eşleşmesi yerine tam ad → kod → en kısa
+                  içeren. read_transcript_xlsx openpyxl'siz (zip+XML), "AGNO" satırında durur. Sonuçlar Excel'le
+                  birebir aynı. pages/grades_view.py: GradesCard + TranscriptCard (Eğitim).
+  library.py      Kütüphane (media): Open Library / Google Books, TMDB (prefs tmdb_key, kullanıcı alır), Apple
+                  Podcasts, makale og:, oyun = Steam storesearch + appdetails (anahtarsız; konsol oyunu elle, ilerleme
+                  saat, rafta DVD gibi kutu). Job = thread + sinyal. Goodreads / Letterboxd kazınmaz (yalnızca bağlantı).
+                  pages/library.py: raf (pages/shelf.py: Shelf sırtlar + fareyle dışarı çıkma, MediaViewer kitap açılır /
+                  DVD-CD diski çıkar), SearchDialog → edit_item("media", preset). Bugün'de "Şu an" kartı.
+                  Telefon sayfasına GİTMEZ (smoke denetler).
+  sürükle-bırak   Row.drag_data "coll:id" + Card.accept_drop(colls, fn) (components.DRAG_MIME): görev → Yaklaşan
+                  sınavlar / ders kartı (sınav), proje kartı (projeye ata).
+  spor (ağırlık)  fitness.py: hareket kataloğu (EXERCISES → ana/yardımcı kaslar, _GUESS ile addan tahmin), e1RM
+                  (Epley), kas yükü (ana 1, yardımcı 0.5 set), rekorlar. workouts.exercises [{name, sets [{r, w}]}],
+                  templates (program: name, exercises [{name, sets, reps, rir}]), body (kilo/ölçü) + prefs goal_weight.
+                  pages/sport_ui.py: WorkoutDialog (programdan başlat → geçen seferki kilolar dolu), TemplateDialog,
+                  LineChart, Templates/Records/Body kartları. lifts = tek başına girilen rekor (PR), history() okur.
+                  Giriş: pages/sport_body.HeroCard — 3B vücut + kipler: Gelişimim (fitness.development: 1RM /
+                  vücut ağırlığı / STANDARDS, seviye 0-4), Son 7 gün, Programlarım, Popüler (fitness.POPULAR, 10
+                  program, haftalık set). body3d.py: ModelView = önceden çizilmiş 72 kare (assets/body_frames.zip,
+                  piksel = 1 + kas×13 + gölge, boyama = renk tablosu, sürükle = döndür); paket yoksa Body3D
+                  (elipsoidlerden basit model, CI'da bu). Paket packaging/make_body.py ile muscle-body/ OBJ'sinden
+                  üretilir (numpy + Pillow); model lisansı belirsiz → ikisi de .gitignore'da, depoya girmez.
+                  Referans: spor/ klasöründeki "Lightweight" ekran görüntüleri (yalnızca veri/fikir, görünüm alpha'nın).
+  pages/          today, schedule, habits, education, work, sport, mind, social, finance, notes
+  zihin           pages/mind.py: sleep (bed/wake, kalite), meditasyon (ClockPanel: kronometre / zamanlayıcı +
+                  BreathPanel nefes), ders çalışma özeti; denge "mind" parçaları. Güne puan verme (ruh hali / enerji /
+                  stres) 3.0'da KALDIRILDI (kullanıcı beğenmedi); eski mood kayıtları data.json'da durur, okunmaz.
+  sayaç           clock.py: tek Clock (win.clock, durum prefs "clock" → yeniden başlatmada sürer), ≥60 sn "sessions"a
+                  yazılır, ders çalışması courses.study_days'i işaretler. clock_ui: başlık çubuğunda ClockPill, ders
+                  kartında CourseClock. Adı "pomodoro" değil (kullanıcı istemedi): kronometre + zamanlayıcı.
+  ekonomi         markets.py: Yahoo chart uç noktası (anahtarsız) + ECB yedeği, TL'ye çevrilir, prefs "prices"
+                  önbelleği; yatırımda asset (kod / Yahoo sembolü) + qty → anlık değer (value_of, net_worth). Ekranda
+                  pages/assets.AssetsCard (5 dk'da bir, yalnızca görünürken; offscreen / ALPHA_OFFLINE=1 ağa çıkmaz).
+                  Alınacaklar sekmesi = pages/wishlist.py ürün kartı vitrini (görsel: image ya da bağlantının og:image'i,
+                  bir kez denenir → img_tried; kategori çipleri; Aldım) = wishlist koleksiyonu (Notion "Wishlist"ten içe alındı; Notion
+                  adresi prefs notion_wishlist'te, koda yazılmaz). Ekonomi / alınacaklar telefona gitmez.
   pages/plan.py   sabah planı (menüde yok, "plan" anahtarı): 1 dünden kalanlar (karar çipleri, İleri'de uygulanır + geri al)
                   2 bugün 3 odak (task.focus = bugünün iso'su, en fazla 3) + günün hedefi ("days" koleksiyonu) 4 hazır.
                   win.open_plan() / maybe_plan(): öğleden önce ilk açılışta, prefs last_plan/plan_skipped/morning_plan.
@@ -104,10 +150,13 @@ Koleksiyonlar `store.py` başındaki belge metninde. Kategori: education, work, 
 - Heredoc ile Python yaması yazarken `\n` gerçek satır sonuna dönüşüyor; çok satırlı değişiklikte Edit kullan.
 
 ## Sürüm ve yayın
-- Repo: https://github.com/yigitozsoy/alpha_dashboard (herkese açık, GPL-3.0). Sürüm tek yerde: `alphaapp/__init__.py`.
+- Repo: https://github.com/yigitozsoy/alpha_dashboard (3.0'dan beri GİZLİ, açık kaynak değil; LICENSE = tüm hakları saklıdır). Sürüm tek yerde: `alphaapp/__init__.py`.
 - `packaging\build.ps1` → `build\installer\alpha-setup-<sürüm>.exe` + `alpha-portable-<sürüm>.zip` (Inno Setup 6).
+  Sihirbaz gamma ile aynı: `WizardStyle=modern dynamic windows11 hidebevels` (Inno 6.7+), görseller
+  make_meta.py'de logodan üretilir (build\wizard, Pillow gerekir; CI pip satırında var), lisans sayfası yok.
 - Yeni sürüm: sürümü artır → commit → push → `git tag vX.Y.Z` → `git push origin vX.Y.Z`; GitHub Actions
-  (`.github/workflows/build.yml`) testi koşup derler ve Releases'a ekler. Herkese açık yayından önce onay al.
+  (`.github/workflows/build.yml`) testi koşup derler ve Releases'a ekler (CI'da body_frames.zip yok → Body3D;
+  yerel derlemedeki kurulum sürüme --clobber ile yüklenir). Yayından önce onay al.
 - Commit kimliği yerel: `Yiğit Özsoy <yigitozsoy@users.noreply.github.com>`. Kişisel e-posta / veri commit'e girmez
   (`.gitignore` data.json ve preferences.json'u da dışlar).
 

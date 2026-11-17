@@ -131,5 +131,4 @@ packaging/
 
 ## Lisans
 
-Geliştirici: **Yiğit Özsoy** · [GPL-3.0](LICENSE). alpha, [PyQt6](https://www.riverbankcomputing.com/software/pyqt/)
-(GPL) kullanır.
+Geliştirici: **Yiğit Özsoy** · Tüm hakları saklıdır ([LICENSE](LICENSE)). Özel depo; açık kaynak değildir.

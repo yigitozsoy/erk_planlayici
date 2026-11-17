@@ -14,6 +14,17 @@ from .theme import theme
 from .widgets import ThemedDialog, ToggleSwitch
 
 LETTERS = ("AA", "BA", "BB", "CB", "CC", "DC", "DD", "FD", "FF")
+GRADE_LETTERS = LETTERS + ("D", "NA")     # D devamsız, NA girmedi: ortalamada 0
+
+
+def retake_choices(store):
+    """Ders formunda "tekrar alınan ders": otomatik / yok / transkriptteki satırlar."""
+    from .grades import by_term
+    out = [("", t("retake_auto")), ("none", t("retake_none"))]
+    for term, rows in by_term(store.all("transcript")):
+        for e in rows:
+            out.append((e["id"], f"{term} · {e.get('code') or ''} {e.get('name') or ''} ({e.get('letter') or 'XX'})"))
+    return out
 
 TASK_PRIORITIES = ("normal", "high", "low")
 PROJECT_STATUS = ("doing", "todo", "waiting", "done")
@@ -22,8 +33,16 @@ WORKOUT_KINDS = ("Gym", "Koşu", "Yüzme", "Bisiklet", "Yürüyüş", "Futbol", 
                  "Dövüş sporu", "Diğer")
 WORKOUT_FOCUS = ("Göğüs", "Sırt", "Bacak", "Omuz", "Kol", "Karın / core", "Tüm vücut", "Push", "Pull", "Legs",
                  "Kardiyo", "Esneme")
-EXAM_NAMES = ("Vize", "Midterm", "Quiz", "Final", "Ödev", "Rapor teslimi", "Proje", "Sunum", "Lab", "Seminer",
-              "Vize 2", "Bütünleme")
+def exam_names(store):
+    """Sınav adı listesi: tanımlı türler (dile göre) + kayıtlarda geçen tanınmayan adlar."""
+    from . import grades
+    from .i18n import is_tr
+    out = list(grades.exam_names(is_tr()))
+    for x in store.all("exams"):
+        n = (x.get("name") or "").strip()
+        if n and grades.exam_kind(n) is None and n not in out:
+            out.append(n)
+    return out
 
 
 def guess_exam(store, title):
@@ -36,11 +55,8 @@ def guess_exam(store, title):
             k = (key or "").strip().casefold()
             if k and k in low and len(k) > best:
                 course, best = c["id"], len(k)
-    kind = None
-    for n in sorted(EXAM_NAMES + ("Midterm 2",), key=len, reverse=True):
-        if n.casefold() in low:
-            kind = n
-            break
+    from . import grades
+    kind = grades.find_exam_kind(low)
     if kind is None:
         for word, n in (("rapor", "Rapor teslimi"), ("teslim", "Ödev"), ("ödev", "Ödev"), ("sınav", "Vize")):
             if word in low:
@@ -56,10 +72,21 @@ INVEST_KINDS = ("Hisse", "Fon", "Altın", "Döviz", "Kripto", "Mevduat", "Tahvil
 # alan: (anahtar, etiket anahtarı, tür, seçenekler)
 #   tür: text · multiline · date · date? (isteğe bağlı) · time? · number · number? · money · money? · choice ·
 #        combo (yazılabilir öneri listesi) · days · bool
+def project_choices(store):
+    """Görev formundaki proje seçimi: (yok) + bitmemiş projeler."""
+    out = [(None, t("no_project"))]
+    for p in sorted(store.all("projects"), key=lambda p: (p.get("name") or "").lower()):
+        if p.get("status") != "done":
+            out.append((p["id"], p.get("name") or "—"))
+    return out
+
+
 def schema(coll, store):
     out = _schema(coll, store)
     if not prefs.get("show_place", True):
         out = [f for f in out if f[0] != "place"]
+    # proje yoksa görev formunda proje satırı çıkmasın
+    out = [f for f in out if not (f[0] == "project" and coll == "tasks" and len(f[3]) < 2)]
     return out
 
 
@@ -71,6 +98,7 @@ def _schema(coll, store):
                 ("time", "f_time", "time?", None),
                 ("end", "f_end", "time?", None),
                 ("priority", "f_priority", "choice", [(p, t("prio_" + p)) for p in TASK_PRIORITIES]),
+                ("project", "f_project", "choice", project_choices(store)),
                 ("note", "f_note", "multiline", None)]
     if coll == "routine":
         return [("title", "f_title", "text", None),
@@ -86,17 +114,83 @@ def _schema(coll, store):
         return [("name", "f_course_name", "text", None),
                 ("code", "f_code", "text", None),
                 ("credits", "f_credits", "number?", None),
+                ("letter", "f_letter", "choice", [("", "—")] + [(x, x) for x in GRADE_LETTERS]),
                 ("target", "f_target_letter", "choice", [("", "—")] + [(x, x) for x in LETTERS]),
+                ("retake", "f_retake", "choice", retake_choices(store)),
                 ("note", "f_note", "multiline", None)]
+    if coll == "media":
+        from .library import TYPES, STATUSES
+        return [("type", "f_mtype", "choice", [(k, t("mt_" + k)) for k in TYPES]),
+                ("title", "f_title", "text", None),
+                ("creator", "f_creator", "text", None),
+                ("status", "f_status", "choice", [(k, t("ms_" + k)) for k in STATUSES]),
+                ("rating", "f_rating", "choice", [(None, "—")] + [(x / 2, "★" * (x // 2) + ("½" if x % 2 else ""))
+                                                                  for x in range(1, 11)]),
+                ("progress", "f_mprogress", "number?", None),
+                ("total", "f_mtotal", "number?", None),
+                ("started", "f_started", "date?", None),
+                ("finished", "f_finished", "date?", None),
+                ("year", "f_year", "number?", None),
+                ("genres", "f_genres", "text", None),
+                ("cover", "f_cover", "image", None),
+                ("link", "f_link", "text", None),
+                ("note", "f_note", "multiline", None)]
+    if coll == "transcript":
+        return [("name", "f_course_name", "text", None),
+                ("code", "f_code", "text", None),
+                ("term", "f_term", "combo", _with_used(("1.1", "1.2", "2.1", "2.2", "3.1", "3.2", "4.1", "4.2"),
+                                                       store, "transcript", "term")),
+                ("credits", "f_credits", "number?", None),
+                ("letter", "f_letter", "choice", [("XX", t("not_taken"))] + [(x, x) for x in GRADE_LETTERS]),
+                ("target", "f_target_letter", "choice", [("", "—")] + [(x, x) for x in LETTERS]),
+                ("lang", "f_lang", "text", None)]
     if coll == "exams":
         courses = [(c["id"], c.get("name", "")) for c in store.all("courses")]
         return [("course", "f_course", "choice", courses),
-                ("name", "f_exam_name", "combo", _with_used(EXAM_NAMES, store, "exams", "name")),
+                ("name", "f_exam_name", "combo", exam_names(store)),
                 ("date", "f_date", "date?", None),
                 ("time", "f_time", "time?", None),
                 ("weight", "f_weight", "number?", None),
                 ("target", "f_target_score", "number?", None),
                 ("score", "f_score", "number?", None),
+                ("note", "f_note", "multiline", None)]
+    if coll == "templates":            # hareketler pages/sport_ui.TemplateDialog'da düzenlenir
+        return [("name", "tpl_name", "text", None),
+                ("note", "f_note", "multiline", None)]
+    if coll == "mood":
+        return [("date", "f_date", "date", None),
+                ("mood", "mood_mood", "number", None),
+                ("energy", "mood_energy_l", "number?", None),
+                ("stress", "mood_stress", "number?", None),
+                ("note", "f_note", "multiline", None)]
+    if coll == "sleep":
+        return [("date", "f_sleep_date", "date", None),
+                ("bed", "sleep_bed", "time?", None),
+                ("wake", "sleep_wake", "time?", None),
+                ("quality", "sleep_quality", "number?", None),
+                ("note", "f_note", "multiline", None)]
+    if coll == "sessions":
+        courses = [("", "—")] + [(c["id"], c.get("name", "")) for c in store.all("courses")]
+        return [("date", "f_date", "date", None),
+                ("kind", "f_session_kind", "choice", [("study", t("clock_study")), ("meditation", t("clock_meditation"))]),
+                ("minutes", "f_minutes", "number", None),
+                ("course", "f_course", "choice", courses),
+                ("note", "f_note", "multiline", None)]
+    if coll == "lifts":
+        from .fitness import exercise_names
+        return [("name", "f_exercise", "combo", exercise_names(store)),
+                ("w", "f_lift_w", "number", None),
+                ("r", "f_lift_r", "number", None),
+                ("date", "f_date", "date", None),
+                ("note", "f_note", "multiline", None)]
+    if coll == "body":
+        return [("date", "f_date", "date", None),
+                ("weight", "f_weight_kg", "number?", None),
+                ("fat", "f_bodyfat", "number?", None),
+                ("waist", "f_waist", "number?", None),
+                ("chest", "f_chest_cm", "number?", None),
+                ("arm", "f_arm", "number?", None),
+                ("thigh", "f_thigh", "number?", None),
                 ("note", "f_note", "multiline", None)]
     if coll == "workouts":
         return [("date", "f_date", "date", None),
@@ -106,9 +200,12 @@ def _schema(coll, store):
                 ("note", "f_note", "multiline", None)]
     if coll == "projects":
         return [("name", "f_project_name", "text", None),
+                ("category", "f_category", "cats", None),
+                ("logo", "f_logo", "image", None),
                 ("status", "f_status", "choice", [(s, t("status_" + s)) for s in PROJECT_STATUS]),
+                ("start", "f_start_date", "date?", None),
                 ("due", "f_due", "date?", None),
-                ("progress", "f_progress", "number?", None),
+                ("progress", "f_progress_manual", "number?", None),
                 ("note", "f_note", "multiline", None)]
     if coll == "events":
         return [("title", "f_title", "text", None),
@@ -136,8 +233,12 @@ def _schema(coll, store):
                 ("settled", "f_settled", "bool", None),
                 ("note", "f_note", "text", None)]
     if coll == "investments":
+        from .markets import options
+        from .i18n import is_tr
         return [("name", "f_inv_name", "text", None),
                 ("kind", "f_kind", "combo", _with_used(INVEST_KINDS, store, "investments", "kind")),
+                ("asset", "f_asset", "combo", [""] + options(is_tr())),
+                ("qty", "f_qty", "number?", None),
                 ("invested", "f_invested", "money", None),
                 ("value", "f_value", "money?", None),
                 ("date", "f_date", "date", None),
@@ -176,6 +277,15 @@ def _schema(coll, store):
                 ("image", "f_image", "image", None),
                 ("done", "f_goal_done", "bool", None),
                 ("note", "f_note", "multiline", None)]
+    if coll == "wishlist":
+        return [("name", "f_wish_name", "text", None),
+                ("price", "f_price", "money?", None),
+                ("category", "f_category", "combo", _with_used(["Gadget", "Giyim", "Ev", "Kitap", "Elektronik"],
+                                                              store, "wishlist", "category")),
+                ("link", "f_link", "text", None),
+                ("image", "f_wish_image", "image", None),
+                ("bought", "f_bought", "bool", None),
+                ("note", "f_note", "text", None)]
     if coll == "meals":
         return [("name", "f_meal_name", "combo", _with_used([], store, "meals", "name")),
                 ("date", "f_date", "date", None),
@@ -189,7 +299,8 @@ def _schema(coll, store):
 REQUIRED = {"tasks": "title", "routine": "title", "courses": "name", "exams": "course", "projects": "name",
             "events": "title", "birthdays": "name", "debts": "person", "investments": "name",
             "transactions": "amount", "workouts": "date", "habits": "name", "meals": "name",
-            "accounts": "name", "recurring": "name", "goals": "title"}
+            "accounts": "name", "recurring": "name", "goals": "title", "transcript": "name", "media": "title",
+            "lifts": "name", "wishlist": "name"}
 
 GOAL_HORIZONS = ("life", "y10", "y3", "year", "term", "action")
 
@@ -210,13 +321,19 @@ def defaults(coll):
         "routine": {"category": "education", "days": [day_today().weekday()], "start": "09:00", "end": "10:00"},
         "exams": {"name": "Vize", "weight": 40},
         "workouts": {"date": d, "kind": "Gym"},
-        "projects": {"status": "doing", "progress": 0},
+        "projects": {"status": "doing", "category": "work", "start": d},
+        "media": {"type": "book", "status": "want"},
         "events": {"date": d},
         "transactions": {"kind": "expense", "date": d, "category": "Yemek"},
         "debts": {"direction": "owe"},
         "investments": {"date": d, "kind": "Hisse"},
         "habits": {"category": "personal", "goal": 7},
         "meals": {"date": d},
+        "body": {"date": d},
+        "lifts": {"date": d, "r": 1},
+        "mood": {"date": d, "mood": 3},
+        "sleep": {"date": d, "bed": prefs.get("sleep_bed", "23:30"), "wake": prefs.get("sleep_wake", "07:30")},
+        "sessions": {"date": d, "kind": "study", "minutes": 25},
         "accounts": {"name": "Nakit"},
         "recurring": {"kind": "expense", "active": True, "category": "Faturalar"},
         "goals": {"area": "growth", "horizon": "year"},
@@ -292,6 +409,11 @@ class CategoryPicker(QWidget):
                                                 (CAT_ORDER, CAT_ICONS, "cat_", "personal"))
         if areas:
             value = life_area(value)
+        else:   # Menüyü düzenle'den eklenen kategoriler de seçilebilsin
+            from .navmenu import custom_cats
+            extra = custom_cats()
+            order = tuple(order) + tuple(c["id"] for c in extra)
+            ic = dict(ic, **{c["id"]: c.get("icon") or "star" for c in extra})
         lay = QHBoxLayout(self)
         lay.setContentsMargins(0, 0, 0, 0)
         lay.setSpacing(6)
@@ -482,6 +604,7 @@ class FormDialog(ThemedDialog):
         title = t(("edit_" if item else "new_") + coll)
         super().__init__(parent, title)
         self.store, self.coll, self.item = store, coll, item
+        self.preset = dict(preset or {})
         self.deleted = False
         self.setMinimumWidth(540)
         data = dict(defaults(coll))
@@ -580,6 +703,10 @@ class FormDialog(ThemedDialog):
             w = QComboBox()
             w.setEditable(True)
             w.addItems(list(opts))
+            if self.coll == "exams" and v:
+                from . import grades
+                from .i18n import is_tr
+                v = grades.exam_label(v, is_tr())
             w.setCurrentText(str(v or ""))
             w.lineEdit().returnPressed.connect(self._save)
             return w
@@ -621,7 +748,7 @@ class FormDialog(ThemedDialog):
             self.exam_course.addItem(c.get("name", ""), c["id"])
         self.exam_kind = QComboBox()
         self.exam_kind.setEditable(True)
-        self.exam_kind.addItems(list(_with_used(EXAM_NAMES, self.store, "exams", "name")))
+        self.exam_kind.addItems(exam_names(self.store))
         self.exam_kind.setMinimumWidth(130)
         h.addWidget(self.exam_course, 1)
         h.addWidget(self.exam_kind)
@@ -666,7 +793,8 @@ class FormDialog(ThemedDialog):
 
     def _save_exam(self, v):
         title = v.get("title") or ""
-        kind = self.exam_kind.currentText().strip() or "Vize"
+        from . import grades
+        kind = grades.exam_canon(self.exam_kind.currentText()) or "Vize"
         ex = {"course": self.exam_course.currentData(), "name": kind, "date": v.get("due"),
               "time": v.get("time"), "end": v.get("end"), "weight": None, "target": None, "score": None}
         course_name = self.exam_course.currentText().strip()
@@ -676,7 +804,7 @@ class FormDialog(ThemedDialog):
         if note:
             ex["note"] = note
         self.coll = "exams"
-        self.item = self.store.add("exams", ex)
+        self.item, _before = self.store.add_exam(ex)
         self.accept()
 
     def _meal_hook(self):
@@ -751,6 +879,23 @@ class FormDialog(ThemedDialog):
             return self._save_exam(v)
         if self.coll == "tasks" and self.item is None:
             v["done"] = False
+        if self.coll == "exams" and v.get("name"):
+            from . import grades
+            v["name"] = grades.exam_canon(v["name"])      # "Midterm 2" / "2. vize" → "Vize 2"
+        if self.coll == "media":
+            from datetime import datetime
+            if self.item is None:      # aramadan gelen ve formda olmayan alanlar (bağlantılar, kaynak, sezon)
+                for k in ("links", "source", "seasons"):
+                    if self.preset.get(k):
+                        v[k] = self.preset[k]
+            today = day_today().isoformat()
+            if v.get("status") == "done" and not v.get("finished"):
+                v["finished"] = today
+            if v.get("status") == "doing" and not v.get("started"):
+                v["started"] = today
+            if v.get("status") == "done" and v.get("total") and not v.get("progress"):
+                v["progress"] = v["total"]
+            v["updated"] = datetime.now().isoformat(timespec="seconds")
         if self.coll == "goals":
             v["parent"] = v.get("parent") or None
             if self.item and v["parent"] and (v["parent"] == self.item["id"] or v["parent"] in
@@ -760,6 +905,8 @@ class FormDialog(ThemedDialog):
                 v["progress"] = max(0.0, min(100.0, v["progress"]))
         if self.item:
             self.store.update(self.coll, self.item["id"], **v)
+        elif self.coll == "exams":
+            self.item, _before = self.store.add_exam(v)     # aynı ders + tür varsa onu doldurur
         else:
             self.item = self.store.add(self.coll, v)
         self.accept()

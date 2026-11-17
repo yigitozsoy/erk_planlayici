@@ -24,10 +24,22 @@ OutputBaseFilename=alpha-setup-{#AppVersion}
 SetupIconFile=..\alphaapp\assets\logo.ico
 UninstallDisplayIcon={app}\{#AppExe}
 UninstallDisplayName={#AppName} {#AppVersion}
-LicenseFile=..\LICENSE
+; Lisans sayfası yok (gamma gibi); LICENSE.txt (tüm hakları saklıdır) kurulum klasörüne konur.
 Compression=lzma2/ultra64
 SolidCompression=yes
-WizardStyle=modern
+; Görünüm (Inno Setup 6.7+, gamma ile aynı): Windows 11 stili, Windows'un açık/koyu temasını izler, ayırıcı çizgi yok.
+; Renkler alpha'nın temalarıyla aynı (koyu: siyah, açık: beyaz); görseller make_meta.py'de üretilir.
+WizardStyle=modern dynamic windows11 hidebevels
+WizardBackColor=#ffffff
+WizardBackColorDynamicDark=#0f0f0f
+WizardImageBackColor=#ffffff
+WizardImageBackColorDynamicDark=#0f0f0f
+WizardSmallImageBackColor=#ffffff
+WizardSmallImageBackColorDynamicDark=#0f0f0f
+WizardSmallImageFile={#WizSmall}
+WizardSmallImageFileDynamicDark={#WizSmallDark}
+WizardImageFile={#WizLarge}
+WizardImageFileDynamicDark={#WizLargeDark}
 ; Güncellemede açık alpha (ana pencere ya da masaüstü widget'ı) kapatılsın
 CloseApplications=yes
 CloseApplicationsFilter=*.exe

@@ -1,12 +1,14 @@
 """Gösterge paneli yapı taşları: sayfa iskeleti, kart, liste satırı, istatistik kutusu, küçük grafikler."""
-from PyQt6.QtCore import Qt, pyqtSignal, QRectF, QPointF, QTimer, QRect, QSize, QPoint
-from PyQt6.QtGui import QPainter, QPen, QFontMetrics, QFont
+from PyQt6.QtCore import Qt, pyqtSignal, QRectF, QPointF, QTimer, QRect, QSize, QPoint, QMimeData
+from PyQt6.QtGui import QPainter, QPen, QFontMetrics, QFont, QDrag
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, QScrollArea, QBoxLayout, QPushButton,
-                             QToolTip, QSizePolicy, QFrame, QLayout)
+                             QToolTip, QSizePolicy, QFrame, QLayout, QApplication)
 
 from .config import day_today
 from .theme import theme, qcolor
 from .widgets import IconButton
+
+DRAG_MIME = "application/x-alpha-item"   # Row.drag_data -> Card.accept_drop
 
 
 # ============================================================ sayfa iskeleti
@@ -213,6 +215,51 @@ class Card(QWidget):
         self.body.addWidget(lbl)
         return lbl
 
+    # --- sürükle-bırak hedefi: Row.drag_data "coll:id" ve coll kabul edilenlerdense on_drop(coll, id) çağrılır
+    _drop = None
+
+    def accept_drop(self, colls, on_drop):
+        self._drop = (tuple(colls), on_drop)
+        self.setAcceptDrops(True)
+
+    def _drop_item(self, e):
+        if not self._drop or not e.mimeData().hasFormat(DRAG_MIME):
+            return None
+        coll, _, iid = bytes(e.mimeData().data(DRAG_MIME)).decode("utf-8").partition(":")
+        if coll not in self._drop[0] or not iid:
+            return None
+        src = e.source()
+        if src is not None and self.isAncestorOf(src):   # kendi kartına bırakmak bir şey yapmasın
+            return None
+        return coll, iid
+
+    def _hover(self, on):
+        self.setProperty("drop", on)
+        self.style().unpolish(self)
+        self.style().polish(self)
+
+    def dragEnterEvent(self, e):
+        if self._drop_item(e):
+            e.acceptProposedAction()
+            self._hover(True)
+        else:
+            e.ignore()
+
+    def dragMoveEvent(self, e):
+        if self._drop_item(e):
+            e.acceptProposedAction()
+
+    def dragLeaveEvent(self, e):
+        self._hover(False)
+
+    def dropEvent(self, e):
+        self._hover(False)
+        item = self._drop_item(e)
+        if item:
+            e.acceptProposedAction()
+            # Bırakma sırasında kayıt değişirse kaynak satır silinir; işi sürükleme bittikten sonra yap
+            QTimer.singleShot(0, lambda: self._drop[1](*item))
+
 
 def _clear_layout(lay):
     while lay.count():
@@ -287,9 +334,36 @@ class Row(QWidget):
         self._checked = not self._checked
         self.check_toggled.emit(self._checked)
 
+    # Sürükle-bırak: drag_data ("koleksiyon:id") verilmişse satır sürüklenebilir; Card.accept_drop ile yakalanır.
+    drag_data = None
+    _press = None
+    _dragged = False
+
+    def mousePressEvent(self, e):
+        if e.button() == Qt.MouseButton.LeftButton:
+            self._press, self._dragged = e.position().toPoint(), False
+        super().mousePressEvent(e)
+
+    def mouseMoveEvent(self, e):
+        if (self.drag_data and self._press is not None and e.buttons() & Qt.MouseButton.LeftButton
+                and (e.position().toPoint() - self._press).manhattanLength() >= QApplication.startDragDistance()):
+            self._press, self._dragged = None, True
+            md = QMimeData()
+            md.setData(DRAG_MIME, self.drag_data.encode("utf-8"))
+            drag = QDrag(self)
+            drag.setMimeData(md)
+            pm = self.grab()
+            drag.setPixmap(pm)
+            drag.setHotSpot(e.position().toPoint())
+            drag.exec(Qt.DropAction.MoveAction)
+            return
+        super().mouseMoveEvent(e)
+
     def mouseReleaseEvent(self, e):
-        if e.button() == Qt.MouseButton.LeftButton and self.rect().contains(e.position().toPoint()):
+        if (e.button() == Qt.MouseButton.LeftButton and not self._dragged
+                and self.rect().contains(e.position().toPoint())):
             self.clicked.emit()
+        self._press, self._dragged = None, False
         super().mouseReleaseEvent(e)
 
     def contextMenuEvent(self, e):

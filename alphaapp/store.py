@@ -1,17 +1,24 @@
 """Veri deposu: tüm kayıtlar tek JSON dosyasında (config.DATA_FILE: Documents\\alpha\\data.json).
 
 Koleksiyonlar (her kayıt bir dict, "id" alanı otomatik):
-  tasks        yapılacaklar   title, category, due, time, end, priority, done, done_at, note
+  tasks        yapılacaklar   title, category, due, time, end, priority, done, done_at, note, project (proje id)
   routine      haftalık program title, category, days[0-6], start, end, place, from, until (tarih aralığı), skip[iso] (o gün yok)
   courses      dersler        name, code, credits, target (harf), note, study_days[iso] (çalışma kareleri)
   exams        sınav/ödev     course, name, date, weight, target, score
-  workouts     antrenman      date, kind, focus, minutes, note
-  projects     iş projeleri   name, status, due, progress, note
+  workouts     antrenman      date, kind, focus, minutes, note, exercises [{name, sets [{r, w}]}] (fitness.py)
+  templates    program        name, exercises [{name, sets, reps, rir}], note
+  body         vücut ölçüsü   date, weight, fat, waist, chest, arm, thigh, note
+  mood         ruh hali       date, mood, energy, stress (1-5), note — günde bir (pages/mind.check_in)
+  sleep        uyku           date (uyanılan gün), bed, wake ("HH:MM"), quality (1-5), note
+  sessions     sayaç oturumu  date, kind (study | meditation), minutes, course, start, mode (clock.py)
+  lifts        rekor (PR)     date, name, w, r, note (antrenman günlüğüne girmez; fitness.history okur)
+  projects     projeler       name, category (work / education / ...), status, start, due, progress (görev yoksa),
+               logo (DATA_DIR\\images içindeki dosya adı), note. Görevler task.project ile bağlanır.
   events       sosyal plan    title, date, time, people, place, note
   birthdays    doğum günü     name, date (yıl önemsiz)
   transactions gelir/gider    date, kind(income|expense), amount, category, note
   debts        borç/alacak    person, direction(owe|owed), amount, due, settled, note
-  investments  yatırım        name, kind, invested, value, date, note
+  investments  yatırım        name, kind, invested, value, date, note, asset (markets kodu), qty (adet / gram)
   notes        notlar         title, body, category, pinned, updated
   days         günlük plan    date, intention, planned_at
   habits       alışkanlık     name, category, goal (haftada gün), note, days[iso]
@@ -22,6 +29,11 @@ Koleksiyonlar (her kayıt bir dict, "id" alanı otomatik):
                due, progress (%; boşsa alt hedeflerden), image (DATA_DIR\\images içindeki dosya adı),
                links["habits:id" | "courses:id" | "projects:id"], days[iso] (elle "bugün çalıştım"), done, note,
                order, sample (örnek veri)
+  transcript   transkript     term ("3.2"), code, name, lang, credits (AKTS), letter, target, old_letter, order
+               (hesap: grades.py; dersler: letter gerçek, guess ihtimal, target hedef harf, retake)
+  media        kütüphane      type, title, creator, year, cover, genres, status, rating, progress, total, started,
+               finished, link, links, source, note (library.py; telefon sayfasına gitmez)
+  wishlist     alınacaklar    name, price, category, link, bought, bought_at, note, source ("notion" = içe alındı)
   wheel        hayat çarkı   month (YYYY-MM), scores {hayat alanı: 1-10}, sample
 """
 import copy
@@ -39,7 +51,8 @@ from .config import DATA_FILE, BACKUP_DIR
 
 COLLECTIONS = ("tasks", "routine", "courses", "exams", "workouts", "projects", "events", "birthdays",
                "transactions", "debts", "investments", "notes", "days", "habits", "meals", "accounts",
-               "recurring", "goals", "wheel")
+               "recurring", "goals", "wheel", "transcript", "media", "templates", "body", "lifts",
+               "mood", "sleep", "sessions", "wishlist")
 
 CATEGORIES = ("education", "work", "sport", "social", "finance", "personal")
 
@@ -88,6 +101,12 @@ def parse_date(s):
 
 def week_start(d: date) -> date:
     return d - timedelta(days=d.weekday())
+
+
+def _exam_label(name):
+    from . import grades
+    from .i18n import is_tr
+    return grades.exam_label(name, is_tr())
 
 
 class Store(QObject):
@@ -189,6 +208,20 @@ class Store(QObject):
     def all(self, coll):
         return self.data[coll]
 
+    def project_task_counts(self, pid):
+        """(açık, toplam) görev sayısı."""
+        ts = [x for x in self.data["tasks"] if x.get("project") == pid]
+        return sum(1 for x in ts if not x.get("done")), len(ts)
+
+    def project_progress(self, p):
+        """İlerleme (0-100): projeye görev atanmışsa biten oranı, yoksa elle girilen; bitti → 100."""
+        if p.get("status") == "done":
+            return 100.0
+        n_open, n_all = self.project_task_counts(p["id"])
+        if n_all:
+            return 100.0 * (n_all - n_open) / n_all
+        return max(0.0, min(100.0, num(p.get("progress"))))
+
     def get(self, coll, item_id):
         for x in self.data[coll]:
             if x.get("id") == item_id:
@@ -202,6 +235,34 @@ class Store(QObject):
         self.data[coll].append(item)
         self._touch(coll)
         return item
+
+    def add_exam(self, ex):
+        """Sınav ekler; aynı derste aynı türde (Vize 2, Final …) tarihi boş ya da aynı olan bir sınav varsa
+        yenisini açmaz, boş olmayan alanları ona yazar (ağırlık / hedef korunur). (kayıt, önceki hâli | None)."""
+        from . import grades
+        ex = dict(ex)
+        ex["name"] = grades.exam_canon(ex.get("name")) or ex.get("name")
+        kind = grades.exam_kind(ex.get("name"))
+        for e in self.data["exams"]:
+            if e.get("course") != ex.get("course") or e.get("score") not in (None, ""):
+                continue
+            same = (grades.exam_kind(e.get("name")) == kind) if kind else \
+                (e.get("name") or "").strip().casefold() == (ex.get("name") or "").strip().casefold()
+            if same and (not e.get("date") or e.get("date") == ex.get("date")):
+                before = dict(e)
+                fields = {k: v for k, v in ex.items() if v not in (None, "") and k not in ("id", "created")}
+                if e.get("note") and fields.get("note") and fields["note"] not in e["note"]:
+                    fields["note"] = e["note"] + "\n" + fields["note"]
+                self.update("exams", e["id"], **fields)
+                return e, before
+        return self.add("exams", ex), None
+
+    def undo_exam(self, item, before):
+        """add_exam'i geri alır."""
+        if before is None:
+            self.delete("exams", item["id"])
+        else:
+            self.update("exams", item["id"], **{k: before.get(k) for k in set(item) | set(before)})
 
     def update(self, coll, item_id, **fields):
         x = self.get(coll, item_id)
@@ -336,12 +397,12 @@ class Store(QObject):
         for e in self.data["exams"]:
             if e.get("score") in (None, ""):
                 c = courses.get(e.get("course"))
-                add("exam", parse_date(e.get("date")), f"{c.get('name', '') if c else ''} · {e.get('name', '')}".strip(" ·"),
+                add("exam", parse_date(e.get("date")), f"{c.get('name', '') if c else ''} · {_exam_label(e.get('name'))}".strip(" ·"),
                     "", "education", "exams", e["id"], overdue_ok=False)
         for p in self.data["projects"]:
             if p.get("status") != "done":
-                add("project", parse_date(p.get("due")), p.get("name", ""), f"%{int(p.get('progress') or 0)}",
-                    "work", "projects", p["id"])
+                add("project", parse_date(p.get("due")), p.get("name", ""), f"%{int(self.project_progress(p))}",
+                    p.get("category") or "work", "projects", p["id"])
         for d in self.data["debts"]:
             if not d.get("settled"):
                 add("debt_" + (d.get("direction") or "owe"), parse_date(d.get("due")), d.get("person", ""),
@@ -376,12 +437,12 @@ class Store(QObject):
         courses = {c["id"]: c for c in self.data["courses"]}
         for e in self.data["exams"]:
             c = courses.get(e.get("course"))
-            add("exam", parse_date(e.get("date")), f"{c.get('name', '') if c else ''} · {e.get('name', '')}".strip(" ·"),
+            add("exam", parse_date(e.get("date")), f"{c.get('name', '') if c else ''} · {_exam_label(e.get('name'))}".strip(" ·"),
                 "", "education", "exams", e["id"])
         for p in self.data["projects"]:
             if p.get("status") != "done":
-                add("project", parse_date(p.get("due")), p.get("name", ""), f"%{int(p.get('progress') or 0)}",
-                    "work", "projects", p["id"])
+                add("project", parse_date(p.get("due")), p.get("name", ""), f"%{int(self.project_progress(p))}",
+                    p.get("category") or "work", "projects", p["id"])
         for d in self.data["debts"]:
             if not d.get("settled"):
                 add("debt_" + (d.get("direction") or "owe"), parse_date(d.get("due")), d.get("person", ""),
@@ -480,12 +541,12 @@ class Store(QObject):
         return sorted(out, key=lambda x: x[0])
 
     def investment_totals(self):
+        """(yatırılan, şu anki değer) — sembol + miktar varsa değer anlık fiyattan (markets önbelleği)."""
+        from .markets import value_of
         inv = val = 0.0
         for x in self.data["investments"]:
-            i = _num(x.get("invested"))
-            v = x.get("value")
-            inv += i
-            val += _num(v) if v not in (None, "") else i
+            inv += _num(x.get("invested"))
+            val += value_of(x)
         return inv, val
 
     def course_average(self, course_id):

@@ -10,6 +10,9 @@ from ..forms import edit_item, bind_row
 from ..i18n import t, fmt_money, fmt_day, fmt_day_month, fmt_month, due_badge, MONTHS_SHORT, fmt_num
 from ..store import parse_date, num
 from ..widgets import IconButton
+from .. import markets
+from .assets import AssetsCard
+from .wishlist import WishlistCard
 
 
 def _add_months(y, m, k):
@@ -38,6 +41,8 @@ class FinancePage(Page):
         # hedef: belirli bir tarihe borçsuz girmek (nakit + gelecek gelir + alacak − sabit gider − borç)
         self.c_goal = Card("")
         self.add(self.c_goal)
+        self.c_assets = AssetsCard(win, on_prices=self.refresh)
+        self.add(self.c_assets)
 
         self.c_chart = Card(t("last_6_months"))
         leg = QLabel(f"<span style='color:#2ba640'>●</span> {t('income')} &nbsp;&nbsp; "
@@ -53,7 +58,7 @@ class FinancePage(Page):
 
         # sekmeler: hareketler / borç & alacak / yatırımlar
         self.tabs = ChipBar([("tx", t("tab_tx")), ("debts", t("tab_debts")), ("fixed", t("tab_fixed")),
-                             ("cash", t("tab_cash")), ("inv", t("tab_inv"))], "tx")
+                             ("cash", t("tab_cash")), ("inv", t("tab_inv")), ("wish", t("tab_wish"))], "tx")
         self.tabs.changed.connect(self._tab)
         self.add(self.tabs)
 
@@ -79,8 +84,9 @@ class FinancePage(Page):
         self.c_fixed.add_clicked.connect(lambda: edit_item(win, "recurring"))
         self.c_cash = Card(t("tab_cash"), add_tip=t("new_accounts"))
         self.c_cash.add_clicked.connect(lambda: edit_item(win, "accounts"))
+        self.c_wish = WishlistCard(win, self.refresh)
         self.tab_cards = {"tx": self.c_tx, "debts": self.c_debts, "fixed": self.c_fixed, "cash": self.c_cash,
-                          "inv": self.c_inv}
+                          "inv": self.c_inv, "wish": self.c_wish}
         for c in self.tab_cards.values():
             self.add(c)
 
@@ -188,19 +194,27 @@ class FinancePage(Page):
 
         # --- yatırımlar
         self.c_inv.clear()
-        invs = sorted(s.all("investments"), key=lambda x: -num(x.get("value") if x.get("value") not in (None, "")
-                                                               else x.get("invested")))
+        q = markets.cached()
+        invs = sorted(s.all("investments"), key=lambda x: -markets.value_of(x, q))
         for x in invs:
             i = num(x.get("invested"))
-            v = num(x.get("value")) if x.get("value") not in (None, "") else i
+            v = markets.value_of(x, q)
             p = v - i
             pc = (p / i * 100) if i else 0
-            sub = [x.get("kind") or "", t("invested_amt", v=fmt_money(i))]
+            code = markets.parse_code(x.get("asset"))
+            sub = [x.get("kind") or ""]
+            if markets.live_value(x, q) is not None:
+                sub.append(t("assets_row", q=fmt_num(num(x.get("qty")), 4), p=fmt_money(q[code]["p"])))
+            sub.append(t("invested_amt", v=fmt_money(i)))
             if x.get("note"):
                 sub.append(x["note"])
-            r = Row(x.get("name", ""), " · ".join(y for y in sub if y), value=fmt_money(v), icon="trending_up",
-                    badges=[(f"{'+' if p >= 0 else '−'}%{fmt_num(abs(pc), 1)}", "good" if p > 0 else "bad" if p < 0
-                             else None)] if i else [])
+            badges = [(f"{'+' if p >= 0 else '−'}%{fmt_num(abs(pc), 1)}", "good" if p > 0 else "bad" if p < 0
+                       else None)] if i else []
+            dc = markets.day_change(x, q)
+            if dc:
+                badges.insert(0, (fmt_money(dc, sign=True), "good" if dc > 0 else "bad"))
+            r = Row(x.get("name") or markets.label(code), " · ".join(y for y in sub if y), value=fmt_money(v),
+                    icon="trending_up", badges=badges)
             self.c_inv.add(bind_row(win, r, "investments", x))
         if not invs:
             self.c_inv.empty(t("no_inv"))
@@ -208,6 +222,8 @@ class FinancePage(Page):
 
         self._fill_fixed()
         self._fill_cash()
+        self.c_wish.refresh()
+        self.c_assets.refresh()
         self._fill_goal(td)
         self._tab(self.tabs.current)
 

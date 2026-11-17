@@ -1,14 +1,13 @@
 """İş: projeler (durum + ilerleme), iş görevleri, iş deadline'ları, bugünkü iş programı."""
 from datetime import date, datetime
 
-from PyQt6.QtWidgets import QWidget, QVBoxLayout
-
 from ..config import day_today, day_of
-from ..components import Page, Card, Row, StatTile, TileGrid, ProgressBar
-from ..forms import edit_item, bind_row
-from ..i18n import t, due_badge, fmt_day
-from ..store import parse_date, num, week_start
+from ..components import Page, Card, StatTile, TileGrid
+from ..forms import edit_item
+from ..i18n import t
+from ..store import week_start
 from . import task_row, deadline_row, routine_row, QuickTask
+from .projects import project_row, sorted_projects
 
 STATUS_ORDER = {"doing": 0, "waiting": 1, "todo": 2, "done": 3}
 
@@ -17,7 +16,8 @@ class WorkPage(Page):
     def __init__(self, store, win):
         super().__init__(store, win, t("nav_work"), t("work_sub"))
         self.action(t("add_task"), lambda: edit_item(win, "tasks", preset={"category": "work"}))
-        self.action(t("add_project"), lambda: edit_item(win, "projects"), primary=True, icon="add")
+        self.action(t("add_project"), lambda: edit_item(win, "projects", preset={"category": "work"}), primary=True,
+                    icon="add")
 
         self.t_active = StatTile(t("active_projects"))
         self.t_open = StatTile(t("open_tasks"))
@@ -26,7 +26,7 @@ class WorkPage(Page):
         self.add(TileGrid([self.t_active, self.t_open, self.t_week, self.t_done]))
 
         self.c_proj = Card(t("projects"), add_tip=t("add_project"))
-        self.c_proj.add_clicked.connect(lambda: edit_item(win, "projects"))
+        self.c_proj.add_clicked.connect(lambda: edit_item(win, "projects", preset={"category": "work"}))
         self.c_tasks = Card(t("work_tasks"), add_tip=t("add_task"))
         self.c_tasks.add_clicked.connect(lambda: edit_item(win, "tasks", preset={"category": "work"}))
         self.c_tasks.layout().addSpacing(6)
@@ -42,8 +42,7 @@ class WorkPage(Page):
         s, win = self.store, self.win
         td = day_today()
         ws = week_start(td)
-        projects = sorted(s.all("projects"), key=lambda p: (STATUS_ORDER.get(p.get("status"), 9),
-                                                            parse_date(p.get("due")) or date.max))
+        projects = sorted_projects(s, "work")
         active = [p for p in projects if p.get("status") != "done"]
         tasks = s.open_tasks("work")
         self.t_active.set(str(len(active)), t("n_total", n=len(projects)) if projects else "")
@@ -57,7 +56,7 @@ class WorkPage(Page):
 
         self.c_proj.clear()
         for p in projects:
-            self.c_proj.add(self._project_row(p))
+            self.c_proj.add(project_row(win, p))
         if not projects:
             self.c_proj.empty(t("no_projects"))
 
@@ -82,30 +81,3 @@ class WorkPage(Page):
             self.c_today.add(routine_row(win, r, hm))
         if not rt:
             self.c_today.empty(t("no_work_today"))
-
-    def _project_row(self, p):
-        box = QWidget()
-        v = QVBoxLayout(box)
-        v.setContentsMargins(0, 0, 0, 6)
-        v.setSpacing(0)
-        d = parse_date(p.get("due"))
-        sub = [t("status_" + (p.get("status") or "doing"))]
-        if d:
-            sub.append(fmt_day(d))
-        badges = []
-        if d and p.get("status") != "done":
-            badges.append(due_badge(d))
-        prog = num(p.get("progress"))
-        r = Row(p.get("name", ""), " · ".join(sub), value=f"%{int(prog)}", icon="cat_work",
-                icon_role="text" if p.get("status") == "doing" else "text3", badges=badges)
-        bind_row(self.win, r, "projects", p, [(t("mark_project_done"), lambda: self.store.update(
-            "projects", p["id"], status="done", progress=100))] if p.get("status") != "done" else [])
-        v.addWidget(r)
-        bar = ProgressBar(prog / 100, "good" if p.get("status") == "done" else "text", height=4)
-        bar.setContentsMargins(0, 0, 0, 0)
-        wrap = QWidget()
-        wl = QVBoxLayout(wrap)
-        wl.setContentsMargins(44, 0, 10, 0)
-        wl.addWidget(bar)
-        v.addWidget(wrap)
-        return box

@@ -10,7 +10,7 @@ from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QH
 
 from .config import day_today
 from .config import prefs
-from .i18n import t
+from .i18n import t, fmt_num
 from .theme import theme, current_name
 from .titlebar import TitleBar
 from .widgets import Toast
@@ -33,62 +33,67 @@ class MONITORINFO(ctypes.Structure):
                 ("dwFlags", wintypes.DWORD)]
 
 
-# (kimlik, ikon, metin anahtarı)
-NAV = [
-    ("today", "today", "nav_today"),
-    ("schedule", "schedule_week", "nav_schedule"),
-    ("habits", "check_circle", "nav_habits"),
-    ("goals", "track_changes", "nav_goals"),
-    None,
-    ("education", "cat_education", "nav_education"),
-    ("work", "cat_work", "nav_work"),
-    ("sport", "cat_sport", "nav_sport"),
-    ("social", "group", "nav_social"),
-    ("finance", "wallet", "nav_finance"),
-    None,
-    ("notes", "notes", "nav_notes"),
-]
-
-
 class Nav(QWidget):
-    def __init__(self, on_select, parent=None):
+    """Sol menü. Düzen navmenu'den gelir (göster / gizle, sıra, ad: sağ tık > Menüyü düzenle)."""
+
+    def __init__(self, on_select, on_edit, parent=None):
         super().__init__(parent)
         self.setObjectName("Nav")
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         self.setFixedWidth(232)
+        self.on_select, self.on_edit = on_select, on_edit
         v = QVBoxLayout(self)
         v.setContentsMargins(12, 8, 12, 12)
         v.setSpacing(2)
-        self.group = QButtonGroup(self)
-        self.group.setExclusive(True)
-        self.btns = {}
-        for entry in NAV:
-            if entry is None:
-                v.addSpacing(6)
-                d = QWidget()
-                d.setObjectName("Divider")
-                d.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
-                d.setFixedHeight(1)
-                v.addWidget(d)
-                v.addSpacing(6)
-                continue
-            key, ic, label = entry
-            b = QPushButton("   " + t(label))
-            b.setObjectName("NavItem")
-            b.setCheckable(True)
-            b.setCursor(Qt.CursorShape.PointingHandCursor)
-            b.setFocusPolicy(Qt.FocusPolicy.NoFocus)
-            b.setFixedHeight(40)
-            theme.icon(b, ic, "text", 22)
-            b.clicked.connect(lambda _=False, k=key: on_select(k))
-            self.group.addButton(b)
-            v.addWidget(b)
-            self.btns[key] = b
+        self.items = QVBoxLayout()
+        self.items.setContentsMargins(0, 0, 0, 0)
+        self.items.setSpacing(2)
+        v.addLayout(self.items)
         v.addStretch(1)
         self.foot = QLabel("")
         self.foot.setObjectName("NavFoot")
         self.foot.setWordWrap(True)
         v.addWidget(self.foot)
+        self.group = None
+        self.btns = {}
+        self.rebuild()
+
+    def rebuild(self):
+        from . import navmenu
+        from .components import _clear_layout
+        _clear_layout(self.items)
+        self.group = QButtonGroup(self)
+        self.group.setExclusive(True)
+        self.btns = {}
+        for key in navmenu.visible():
+            if key == "-":
+                self.items.addSpacing(6)
+                d = QWidget()
+                d.setObjectName("Divider")
+                d.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+                d.setFixedHeight(1)
+                self.items.addWidget(d)
+                self.items.addSpacing(6)
+                continue
+            b = QPushButton("   " + navmenu.label(key).replace("&", "&&"))
+            b.setObjectName("NavItem")
+            b.setCheckable(True)
+            b.setCursor(Qt.CursorShape.PointingHandCursor)
+            b.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+            b.setFixedHeight(40)
+            theme.icon(b, navmenu.icon(key), "text", 22)
+            b.clicked.connect(lambda _=False, k=key: self.on_select(k))
+            self.group.addButton(b)
+            self.items.addWidget(b)
+            self.btns[key] = b
+
+    def keys(self):
+        return list(self.btns)
+
+    def contextMenuEvent(self, e):
+        m = QMenu(self)
+        m.addAction(t("nav_edit"), self.on_edit)
+        m.exec(e.globalPos())
 
     def set_current(self, key):
         b = self.btns.get(key)
@@ -120,13 +125,20 @@ class MainWindow(QMainWindow):
         body = QHBoxLayout()
         body.setContentsMargins(0, 0, 0, 0)
         body.setSpacing(0)
-        self.nav = Nav(self.show_page, root)
+        self.nav = Nav(self.show_page, self.edit_nav, root)
         body.addWidget(self.nav)
         self.stack = QStackedWidget(root)
         body.addWidget(self.stack, 1)
         v.addLayout(body, 1)
         self.setCentralWidget(root)
         self.toast_w = Toast(root)
+
+        from .clock import Clock
+        self.clock = Clock(store, self)          # kronometre / zamanlayıcı (ders, meditasyon)
+        self.clock.finished.connect(self._clock_done)
+        from .clock_ui import ClockPill
+        self.clock_pill = ClockPill(self)
+        self.titlebar.layout().insertWidget(self.titlebar.layout().indexOf(self.titlebar.btn_add), self.clock_pill)
 
         from .pages import build_pages
         self.pages = build_pages(store, self)
@@ -144,10 +156,10 @@ class MainWindow(QMainWindow):
         tb.desk_clicked.connect(lambda: self.set_desk(not (self.desk is not None and self.desk.isVisible())))
         self.desk = None
 
-        keys = [e[0] for e in NAV if e]
-        for i, k in enumerate(keys[:9]):
+        self._ensure_pages()
+        for i in range(9):   # Ctrl+1..9: menüdeki sıraya göre
             sc = QShortcut(QKeySequence(f"Ctrl+{i + 1}"), self)
-            sc.activated.connect(lambda k=k: self.show_page(k))
+            sc.activated.connect(lambda i=i: self._nth_page(i))
         for seq, fn in (("Ctrl+N", self.quick_add_menu), ("Ctrl+,", self.show_prefs), ("F11", self.toggle_fullscreen),
                         ("Ctrl+B", lambda: self.set_nav(not self.nav.isVisible())),
                         ("F5", self.refresh_all)):
@@ -186,6 +198,45 @@ class MainWindow(QMainWindow):
             prefs.set("last_page", key)
         self.current = key
 
+    def _nth_page(self, i):
+        keys = self.nav.keys()
+        if i < len(keys):
+            self.show_page(keys[i])
+
+    def _ensure_pages(self):
+        """Eklenen kategorilerin sayfaları (navmenu.custom_cats) yoksa kurulur, silinenler kaldırılır."""
+        from . import navmenu
+        from .pages.category import CategoryPage
+        ids = {c["id"] for c in navmenu.custom_cats()}
+        for cid in ids - set(self.pages):
+            page = CategoryPage(self.store, self, cid)
+            self.pages[cid] = page
+            self.stack.addWidget(page)
+        for key in [k for k in self.pages if k.startswith("c_") and k not in ids]:
+            page = self.pages.pop(key)
+            if getattr(self, "current", None) == key:
+                self.show_page("today")
+            self.stack.removeWidget(page)
+            page.deleteLater()
+
+    def edit_nav(self):
+        from .navmenu import NavEditor
+        if NavEditor(self).exec():
+            self._ensure_pages()
+            self.nav.rebuild()
+            for page in self.pages.values():   # kategori adları yenilensin
+                if hasattr(page, "mark_dirty"):
+                    page.mark_dirty()
+            self._rename_titles()
+            self.nav.set_current(getattr(self, "current", "today"))
+            self.toast(t("nav_saved"))
+
+    def _rename_titles(self):
+        from . import navmenu
+        for key, page in self.pages.items():
+            if key in navmenu.BUILTIN or key.startswith("c_"):
+                page.title_lbl.setText(navmenu.label(key))
+
     def open_plan(self):
         """Sabah planı ekranını baştan açar."""
         self.pages["plan"].start()
@@ -218,11 +269,16 @@ class MainWindow(QMainWindow):
     def toast(self, text, action=None, callback=None):
         self.toast_w.show_text(text, action, callback)
 
+    def _clock_done(self, rec):
+        if rec:
+            self.toast(t("clock_saved", m=fmt_num(rec.get("minutes"), 0),
+                         x=t("clock_" + (rec.get("kind") or "study"))))
+
     def quick_add_menu(self):
         from .forms import edit_item
         m = QMenu(self)
         items = [("tasks", "qa_task"), ("routine", "qa_routine"), ("habits", "qa_habit"), None, ("exams", "qa_exam"),
-                 ("workouts", "qa_workout"), ("events", "qa_event"), None,
+                 ("workouts", "qa_workout"), ("sleep", "qa_sleep"), ("events", "qa_event"), None,
                  ("transactions", "qa_tx"), ("debts", "qa_debt"), None]
         for it in items:
             if it is None:

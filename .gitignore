@@ -26,3 +26,12 @@ desktop.ini
 data.json
 data-*.json
 preferences.json
+
+# kişisel not dosyaları (Excel transkript)
+*.xlsx
+
+# 3B vücut modeli (lisansı belirsiz, yalnızca yerelde): kaynak model + ondan üretilen kare paketi
+muscle-body/
+alphaapp/assets/body_frames.zip
+# referans ekran görüntüleri
+spor/

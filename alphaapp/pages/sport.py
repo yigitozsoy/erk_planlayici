@@ -11,17 +11,23 @@ from ..components import (Page, Card, Row, StatTile, TileGrid, BarChart, HBars, 
                           FlowLayout)
 from ..widgets import IconButton
 from ..config import prefs
-from ..forms import edit_item, bind_row
+from ..forms import edit_item, bind_row, item_menu
 from ..i18n import t, fmt_day, fmt_day_month, fmt_num, WEEKDAYS_SHORT
 from ..store import parse_date, num, week_start
 from . import task_row
+from .sport_ui import TemplatesCard, RecordsCard, BodyCard, open_workout, workout_sub
+from .sport_body import HeroCard
 
 
 class SportPage(Page):
     def __init__(self, store, win):
         super().__init__(store, win, t("nav_sport"), t("sport_sub"))
         self.action(t("add_routine"), lambda: edit_item(win, "routine", preset={"category": "sport"}))
-        self.action(t("add_workout"), lambda: edit_item(win, "workouts"), primary=True, icon="add")
+        self.action(t("add_workout"), lambda: open_workout(win), primary=True, icon="add")
+
+        # giriş: döndürülebilir vücut, kaslar gelişime / programa göre kızarır
+        self.c_hero = HeroCard(win)
+        self.add(self.c_hero)
 
         self.t_week = StatTile(t("this_week"))
         self.t_month = StatTile(t("this_month"))
@@ -69,6 +75,12 @@ class SportPage(Page):
         self.c_chart.layout().addWidget(self.chart)
         self.row(self.c_week, self.c_chart)
 
+        # ağırlık antrenmanı: rekorlar + vücut (programlar günlüğün yanında)
+        self.c_tpl = TemplatesCard(win)
+        self.c_pr = RecordsCard(win)
+        self.c_body = BodyCard(win)
+        self.row(self.c_pr, self.c_body)
+
         # beslenme: bugünkü kalori / makrolar + öğünler
         self.c_food = Card(t("nutrition"))
         gear = IconButton("settings", t("nutrition_goals"), 32, 20)
@@ -79,7 +91,7 @@ class SportPage(Page):
         self.row(self.c_food, self.c_meals)
 
         self.c_log = Card(t("workout_log"), add_tip=t("add_workout"))
-        self.c_log.add_clicked.connect(lambda: edit_item(win, "workouts"))
+        self.c_log.add_clicked.connect(lambda: open_workout(win))
         self.c_focus = Card(t("what_trained"), t("last_30"))
         self.focus = HBars("text", fmt=lambda v: t("n_times", n=int(v)))
         self.c_focus.layout().addWidget(self.focus)
@@ -89,6 +101,7 @@ class SportPage(Page):
         rv = QVBoxLayout(right_col)
         rv.setContentsMargins(0, 0, 0, 0)
         rv.setSpacing(16)
+        rv.addWidget(self.c_tpl)
         rv.addWidget(self.c_focus)
         rv.addWidget(self.c_plan)
         rv.addStretch(1)
@@ -353,17 +366,24 @@ class SportPage(Page):
             sub = [fmt_day(d) if d else ""]
             if w.get("minutes"):
                 sub.append(t("n_min", n=int(num(w["minutes"]))))
-            if w.get("note"):
+            if w.get("exercises"):
+                sub.append(workout_sub(w))
+            elif w.get("note"):
                 sub.append(w["note"].splitlines()[0][:60])
             title = " · ".join(x for x in (w.get("kind"), w.get("focus")) if x) or t("workout")
             r = Row(title, " · ".join(x for x in sub if x), icon="cat_sport")
-            self.c_log.add(bind_row(win, r, "workouts", w, [(t("repeat_today"), lambda w=w: s.add("workouts", {
-                k: v for k, v in w.items() if k not in ("id", "created", "date")} | {"date": td.isoformat()}))]))
+            r.clicked.connect(lambda w=w: open_workout(win, w))
+            extra = [(t("repeat_today"), lambda w=w: s.add("workouts", {
+                k: v for k, v in w.items() if k not in ("id", "created", "date")} | {"date": td.isoformat()}))]
+            r.menu_requested.connect(lambda pos, w=w, extra=extra: item_menu(win, "workouts", w, pos, extra))
+            self.c_log.add(r)
         if not ws_all:
             self.c_log.empty(t("no_workouts_hint"))
         self.c_log.set_sub(t("n_total", n=len(ws_all)) if ws_all else "")
 
         self._fill_food()
+        for c in (self.c_hero, self.c_tpl, self.c_pr, self.c_body):
+            c.refresh()
 
         self.c_plan.clear()
         rt = sorted((r for r in s.all("routine") if r.get("category") == "sport"),

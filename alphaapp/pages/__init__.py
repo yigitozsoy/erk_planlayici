@@ -28,6 +28,10 @@ def build_pages(store, win):
     from .plan import PlanPage
     from .habits import HabitsPage
     from .goals import GoalsPage
+    from .category import CategoryPage
+    from .projects import ProjectsPage
+    from .library import LibraryPage
+    from .mind import MindPage
     return {
         "today": TodayPage(store, win),
         "schedule": SchedulePage(store, win),
@@ -35,9 +39,13 @@ def build_pages(store, win):
         "goals": GoalsPage(store, win),
         "education": EducationPage(store, win),
         "work": WorkPage(store, win),
+        "projects": ProjectsPage(store, win),
         "sport": SportPage(store, win),
+        "mind": MindPage(store, win),
         "social": SocialPage(store, win),
         "finance": FinancePage(store, win),
+        "personal": CategoryPage(store, win, "personal"),
+        "library": LibraryPage(store, win),
         "notes": NotesPage(store, win),
         "plan": PlanPage(store, win),
     }
@@ -65,6 +73,10 @@ def task_row(win, task, show_cat=True):
         sub.append(t("cat_" + (task.get("category") or "personal")))
     if d and task.get("time"):
         sub.append(task["time"])
+    if task.get("project"):
+        p = win.store.get("projects", task["project"])
+        if p:
+            sub.insert(0, p.get("name") or "")
     if task.get("note"):
         sub.append(task["note"].splitlines()[0][:60])
     badges = []
@@ -83,22 +95,43 @@ def task_row(win, task, show_cat=True):
                      "tasks", task["id"], due=date.fromordinal(day_today().toordinal() + 1).isoformat()))]
         if task.get("category") == "education" and win.store.all("courses"):
             extra.append((t("move_to_exams"), lambda: task_to_exam(win, task)))
+        r.drag_data = "tasks:" + task["id"]   # Eğitim'de sınav / ders kartına sürüklenebilir
     return bind_row(win, r, "tasks", task, extra)
 
 
-def task_to_exam(win, task):
-    """Ders görevini (ör. "Fizik I: Vize") Sınavlar'a taşır: sınav formu tahminle dolu açılır, kaydedilince görev
+def task_to_exam(win, task, course=None, ask=True):
+    """Ders görevini (ör. "Fizik I: Vize") Sınavlar'a taşır. ask=False (sürükle-bırak) iken ders ve tür
+    başlıktan bulunabildiyse form açmadan taşır; bulunamazsa sınav formu tahminle dolu açılır. Kaydedilince görev
     silinir. Geri al ikisini de geri çevirir."""
     from ..forms import guess_exam
     store = win.store
-    course, kind = guess_exam(store, task.get("title"))
-    preset = {"course": course or store.all("courses")[0]["id"], "name": kind or "Vize", "date": task.get("due"),
-              "time": task.get("time"), "weight": None, "note": task.get("title", "")}
-    ex = edit_item(win, "exams", preset=preset)
+    if not store.all("courses"):
+        return
+    g_course, kind = guess_exam(store, task.get("title"))
+    course = course or g_course
+    data = {"course": course or store.all("courses")[0]["id"], "name": kind or "Vize", "date": task.get("due"),
+            "time": task.get("time"), "weight": None, "note": task.get("title", "")}
+    before = None
+    if not ask and course and kind:
+        ex, before = store.add_exam(data)
+    else:
+        n_before = {e["id"]: dict(e) for e in store.all("exams")}
+        ex = edit_item(win, "exams", preset=data)
+        if ex is not None:
+            before = n_before.get(ex["id"])         # form mevcut sınavla birleştirdiyse
     if ex is None:
         return
     removed = store.delete("tasks", task["id"])
-    win.toast(t("moved_to_exams"), t("undo"), lambda: (store.delete("exams", ex["id"]), store.restore(removed)))
+    win.toast(t("moved_to_exams"), t("undo"), lambda: (store.undo_exam(ex, before), store.restore(removed)))
+
+
+def drop_task_to_exam(win, course=None):
+    """Card.accept_drop için: bırakılan görevi sınava çevirir (course verilirse o derse)."""
+    def handler(coll, iid):
+        task = win.store.get(coll, iid)
+        if task is not None:
+            task_to_exam(win, task, course=course, ask=False)
+    return handler
 
 
 def deadline_row(win, d, show_cat=True):

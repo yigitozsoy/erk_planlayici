@@ -243,6 +243,7 @@ QPushButton#NavItem:checked:hover {{ background: {c['surface_hover']}; }}
 
 /* Kartlar */
 #Card {{ background: {c['card']}; border-radius: 12px; }}
+#Card[drop="true"] {{ border: 1px dashed {c['text2']}; }}
 #CardToday {{ background: {c['surface']}; border-radius: 12px; }}
 #Reminder {{ background: {c['card']}; border: 1px solid {c['input_border']}; border-radius: 12px; }}
 #ReminderImportant {{ background: {c['card']}; border: 1px solid rgba(255,78,69,0.6);
@@ -286,6 +287,7 @@ QPushButton#CatChip:checked {{ background: {c['selected']}; border: 1px solid {c
 #BadgeGood {{ background: rgba(43,166,64,0.18); color: {GOOD if dark else '#1e7a30'}; border-radius: 4px; padding: 1px 6px;
     font-size: 11px; font-weight: 600; }}
 #TimeLbl {{ font-size: 13px; font-weight: 600; color: {c['text']}; font-family: "Segoe UI Variable Display", "Segoe UI"; }}
+#ClockBig {{ font-size: 46px; font-weight: 700; letter-spacing: -1px; color: {c['text']}; }}
 #StatValue {{ font-size: 22px; font-weight: 700; letter-spacing: -0.4px; color: {c['text']}; }}
 #StatLabel {{ font-size: 12px; color: {c['text2']}; }}
 #StatGood {{ font-size: 12px; color: {GOOD}; font-weight: 600; }}
@@ -293,6 +295,15 @@ QPushButton#CatChip:checked {{ background: {c['selected']}; border: 1px solid {c
 #Greeting {{ font-size: 28px; font-weight: 700; letter-spacing: -0.6px; color: {c['text']}; }}
 #Intention {{ font-size: 18px; font-weight: 600; color: {c['text']}; }}
 #TodayIntention {{ font-size: 14px; font-style: italic; color: {c['text2']}; }}
+
+#WishCard {{ background: {c['surface']}; border-radius: 14px; }}
+#WishCard:hover {{ background: {c['surface_hover']}; }}
+#WishName {{ font-size: 13px; font-weight: 600; color: {c['text']}; }}
+#WishPrice {{ font-size: 13px; font-weight: 700; color: {c['text']}; }}
+QPushButton#WishBtn {{ background: {c['chip_active_bg']}; color: {c['chip_active_fg']}; border: none; border-radius: 13px;
+    padding: 0px 10px; min-width: 0px; height: 26px; font-size: 12px; font-weight: 600; }}
+QPushButton#WishBtnOn {{ background: transparent; color: {c['text2']}; border: 1px solid {c['surface_hover']};
+    border-radius: 13px; padding: 0px 10px; min-width: 0px; height: 24px; font-size: 12px; }}
 
 QPushButton#Chip {{
     background: {c['surface']}; color: {c['text']}; border: none;

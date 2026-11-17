@@ -140,6 +140,8 @@ DEFAULTS = {
     "plan_skipped": None,
     "last_page": "today",
     # web görünümü (telefondan bakmak için): web.py
+    "agno_goal": 3.0,            # Eğitim > Not ortalaması: sabit AGNO hedefi
+    "tmdb_key": "",              # kütüphane: film / dizi bilgisi (themoviedb.org, ücretsiz)
     "web_on": False,
     "web_url": "",                  # https://.../api/alpha.php
     "web_key": "",                  # gizli anahtar; sunucuda yalnızca sha256'sı

@@ -157,8 +157,8 @@ def _i18n(ctx):
                 missing.add(k)
     from alphaapp.store import CATEGORIES, COLLECTIONS
     from alphaapp.forms import TASK_PRIORITIES, PROJECT_STATUS
-    from alphaapp.window import NAV
-    missing |= {e[2] for e in NAV if e} - set(S)
+    from alphaapp.navmenu import BUILTIN
+    missing |= {v[1] for v in BUILTIN.values()} - set(S)
     for c in CATEGORIES:
         missing |= {"cat_" + c} - set(S)
     for p in TASK_PRIORITIES:
@@ -208,7 +208,7 @@ def _web(ctx):
     g = store.add("goals", {"title": "GIZLI_HEDEF_XYZ", "image": "gizli.png"})
     snap = web.build_snapshot(store)
     txt = json.dumps(snap, ensure_ascii=False)
-    for bad in ("GIZLI_HEDEF_XYZ", "gizli.png", '"transactions"', '"notes"', '"goals"'):
+    for bad in ("GIZLI_HEDEF_XYZ", "gizli.png", '"transactions"', '"notes"', '"goals"', '"wishlist"'):
         assert bad not in txt, bad
     td = day_today().isoformat()
     assert [d for d in snap["days"] if d["date"] == td][0]["blocks"], "bugün boş"
@@ -225,7 +225,11 @@ def _task_as_exam(ctx):
     from alphaapp.forms import FormDialog, guess_exam
     store, win = ctx["store"], ctx["win"]
     c = store.all("courses")[0]
-    assert guess_exam(store, f"{c['name']}: Midterm 2 (D220)") == (c["id"], "Midterm 2")
+    assert guess_exam(store, f"{c['name']}: Midterm 2 (D220)") == (c["id"], "Vize 2")
+    from alphaapp import grades as _gr
+    assert _gr.exam_canon("midterm 1") == "Vize 1" and _gr.exam_canon("Lab") == "Laboratuvar"
+    assert _gr.exam_label("Vize 2", False) == "Midterm 2" and _gr.exam_canon("Kendi sınavım") == "Kendi sınavım"
+    assert _gr.exam_order("Final") > _gr.exam_order("Vize 2") > _gr.exam_order("Vize 1")
     assert guess_exam(store, "Rapor teslim et")[1] == "Rapor teslimi"
     d = FormDialog(win, store, "tasks")
     assert d.exam_row is not None and d.exam_row[1].isHidden(), "kişisel kategoride görünmemeli"
@@ -1268,6 +1272,693 @@ def _goals(ctx):
     assert len(store.all("goals")) == n0
     page.tabs.select("board")
     _pump(app)
+
+
+def _mini_xlsx(path, rows):
+    """Testlik küçük xlsx: rows = {(satır, sütun): değer} (satır içi metin; openpyxl gerekmez)."""
+    import zipfile
+    from xml.sax.saxutils import escape
+    by_row = {}
+    for (r, c), v in rows.items():
+        by_row.setdefault(r, []).append((c, v))
+    sheet = ['<?xml version="1.0" encoding="UTF-8"?><worksheet xmlns="http://schemas.openxmlformats.org/'
+             'spreadsheetml/2006/main"><sheetData>']
+    for r in sorted(by_row):
+        sheet.append(f'<row r="{r}">')
+        for c, v in sorted(by_row[r]):
+            if isinstance(v, (int, float)):
+                sheet.append(f'<c r="{c}{r}"><v>{v}</v></c>')
+            else:
+                sheet.append(f'<c r="{c}{r}" t="inlineStr"><is><t>{escape(v)}</t></is></c>')
+        sheet.append("</row>")
+    sheet.append("</sheetData></worksheet>")
+    m = "http://schemas.openxmlformats.org/"
+    with zipfile.ZipFile(path, "w") as z:
+        z.writestr("[Content_Types].xml", f'<?xml version="1.0"?><Types xmlns="{m}package/2006/content-types">'
+                   '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>'
+                   '<Default Extension="xml" ContentType="application/xml"/></Types>')
+        z.writestr("xl/workbook.xml", f'<?xml version="1.0"?><workbook xmlns="{m}spreadsheetml/2006/main" '
+                   f'xmlns:r="{m}officeDocument/2006/relationships"><sheets><sheet name="lectures" sheetId="1" '
+                   'r:id="rId1"/></sheets></workbook>')
+        z.writestr("xl/_rels/workbook.xml.rels", f'<?xml version="1.0"?><Relationships xmlns="{m}package/2006/'
+                   'relationships"><Relationship Id="rId1" Type="x" Target="worksheets/sheet1.xml"/></Relationships>')
+        z.writestr("xl/worksheets/sheet1.xml", "".join(sheet))
+
+
+@step("not ortalaması: harf → not, ANO / AGNO (Excel ile aynı), tekrar alınan ders, Excel'den al, dönemi bitir")
+def _grades(ctx):
+    from alphaapp import grades
+    store, win, app = ctx["store"], ctx["win"], ctx["app"]
+    assert grades.point("bb") == 3.0 and grades.point("XX") is None and grades.point("NA") == 0.0
+    assert grades.point("") is None and grades.point(2.5) == 2.5
+    # transkript: Excel düzeni (KOD / ÖNŞART / DERS / DİL / AKTS / HARF, sağda hedef bloğu), AGNO satırında biter
+    path = os.path.join(_tmp, "tr.xlsx")
+    cells = {(2, "A"): "KOD", (2, "C"): "DERS", (2, "D"): "DİL", (2, "E"): "AKTS", (2, "F"): "HARF ",
+             (2, "I"): "KOD", (2, "K"): "DERS", (2, "L"): "DİL", (2, "M"): "AKTS", (2, "N"): "HARF ",
+             (3, "A"): "1. SINIF 1. DÖNEM", (4, "A"): "FIZ103", (4, "C"): "Fizik I", (4, "E"): 6, (4, "F"): "DC",
+             (4, "N"): "AA", (5, "A"): "FIZ104", (5, "C"): "Fizik II", (5, "E"): 6, (5, "F"): "BB",
+             (6, "A"): "TOPLAM AKTS", (7, "A"): "1. SINIF 2. DÖNEM", (8, "A"): "MM423",
+             (8, "C"): "Bitirme Tasarım Projesi I", (8, "E"): 5, (8, "F"): "XX", (8, "N"): "BA",
+             (10, "A"): "AGNO", (12, "A"): "PLAN", (12, "C"): "alınmamalı", (12, "E"): 9, (12, "F"): "AA"}
+    _mini_xlsx(path, cells)
+    rows = grades.read_transcript_xlsx(path)
+    assert [r["code"] for r in rows] == ["FIZ103", "FIZ104", "MM423"], rows
+    assert rows[0]["term"] == "1.1" and rows[2]["term"] == "1.2" and rows[0]["target"] == "AA"
+    for r in list(store.all("transcript")):
+        store.delete("transcript", r["id"])
+    for r in rows:
+        store.add("transcript", r)
+    tr = store.all("transcript")
+    pts, akts = grades.totals(tr)
+    assert (pts, akts) == (6 * 1.5 + 6 * 3, 12)           # XX AKTS'ye girmez
+    assert grades.totals(tr, "target") == (6 * 4 + 6 * 3 + 5 * 3.5, 17)
+    # bu dönem: Fizik I tekrar (eski DC düşülür), "Fizik I" ↔ "Fizik II" karışmaz
+    cs = [{"id": "a", "name": "Fizik I", "credits": 6, "letter": "BA"},
+          {"id": "b", "name": "Kalite Kontrol", "credits": 5, "guess": "CC", "target": "AA"}]
+    assert grades.match_retake(cs[0], tr)["code"] == "FIZ103"
+    r = grades.semester(cs, tr)
+    assert abs(r["agno"] - (6 * 3.5 + 6 * 3) / 12) < 1e-9 and r["ano"] == 3.5
+    g = grades.semester(cs, tr, "guess")                  # gerçek harf ihtimalde de kullanılır
+    assert abs(g["ano"] - (6 * 3.5 + 5 * 2) / 11) < 1e-9
+    need = grades.needed_point(cs, tr, 3.0)
+    assert abs(((6 * 3.5 + 6 * 3) + need * 5) / 17 - 3.0) < 1e-9
+    assert grades.match_retake(dict(cs[0], retake="none"), tr) is None
+    # sayfa: kart satırları ve yerinde harf seçimi
+    c = store.all("courses")[0]
+    win.show_page("education")
+    _pump(app)
+    page = win.pages["education"]
+    from alphaapp.pages.grades_view import _Combo
+    combos = page.c_grades.findChildren(_Combo)
+    assert len(combos) == 2 * len(store.all("courses")), len(combos)
+    # sınav çubuğu: sınavı olan her derste bir ExamBar; kalem = sınav çipleri (düzenleme kipi)
+    from PyQt6.QtWidgets import QPushButton
+    from alphaapp.pages.grades_view import ExamBar
+    ids = {x["id"] for x in store.all("courses")}
+    n_ex = len([e for e in store.all("exams") if e.get("course") in ids])
+    with_ex = {e.get("course") for e in store.all("exams") if e.get("course") in ids}
+    bars = page.c_grades.findChildren(ExamBar)
+    assert len(bars) == len(with_ex), (len(bars), len(with_ex))
+    for b in bars:
+        b.resize(400, b.H)
+        r = b._rects()
+        assert len(r) == len(b.exams) and r[-1].right() <= 401, r
+        b._tip(b.exams[0])
+        b.repaint()
+    chips = [b for b in page.c_grades.findChildren(QPushButton) if b.objectName() == "Chip" and b.isVisibleTo(page)]
+    assert not chips, len(chips)
+    page.c_grades.pen.setChecked(True)
+    _pump(app, 4)
+    chips = [b for b in page.c_grades.findChildren(QPushButton) if b.objectName() == "Chip" and b.isVisibleTo(page)]
+    assert len(chips) == n_ex, (len(chips), n_ex)
+    page.c_grades.pen.setChecked(False)
+    _pump(app, 4)
+    combos = page.c_grades.findChildren(_Combo)
+    # kısa ad, sabit hedef kutusu, aynı ders + türde sınav birleşir
+    from alphaapp.pages.grades_view import _short
+    assert _short("Vize 1") == "V1" and _short("Laboratuvar") == "L" and _short("Ödev") == "Ö"
+    from alphaapp.config import prefs as _pf
+    _pf.set("agno_goal", 3.0)
+    page.c_grades.refresh()
+    _pump(app, 2)
+    from PyQt6.QtWidgets import QLabel as _QL
+    assert any(x.text() == "3.00" for x in page.c_grades.findChildren(_QL)), "hedef kutusu"
+    c0 = store.all("courses")[0]["id"]
+    ph, _b = store.add_exam({"course": c0, "name": "Final", "date": None, "weight": 60, "target": 90})
+    n0 = len(store.all("exams"))
+    got, before = store.add_exam({"course": c0, "name": "final", "date": "2030-01-10", "weight": None,
+                                  "note": "D220"})
+    assert got["id"] == ph["id"] and before is not None and len(store.all("exams")) == n0
+    assert got["date"] == "2030-01-10" and got["weight"] == 60 and got["target"] == 90, got
+    store.undo_exam(got, before)
+    assert store.get("exams", ph["id"]).get("date") is None
+    store.delete("exams", ph["id"])
+    cb = [x for x in combos if x.isEnabled()][0]
+    cb.setCurrentIndex(cb.findData("BB"))
+    cb.activated.emit(cb.currentIndex())
+    _pump(app, 6)
+    assert any(x.get("letter") == "BB" or x.get("guess") == "BB" or x.get("target") == "BB"
+               for x in store.all("courses"))
+    page.c_transcript._toggle("1.1")
+    _pump(app, 4)
+    # dönemi bitir: gerçek harf transkripte yazılır, tekrar alınan ders güncellenir, geri al
+    store.update("courses", c["id"], letter="AA", name="Fizik I", credits=6)
+    n0 = len(store.all("transcript"))
+    added, changed = grades.finish_semester(store, "1.2")
+    assert not added and changed and store.get("transcript", changed[0]["id"])["letter"] == "AA"
+    assert store.get("transcript", changed[0]["id"])["old_letter"] == "DC" and len(store.all("transcript")) == n0
+    store.update("transcript", changed[0]["id"], letter="DC", old_letter=None)
+    store.update("courses", c["id"], letter=None)
+    _pump(app)
+
+
+@step("menüyü düzenle: kategori ekle / adlandır / gizle, sayfası açılır, formda seçilir, silince Kişisel'e geçer")
+def _navmenu(ctx):
+    from alphaapp import navmenu
+    from alphaapp.config import prefs
+    from alphaapp.i18n import t
+    from alphaapp.forms import CategoryPicker
+    store, win, app = ctx["store"], ctx["win"], ctx["app"]
+    assert navmenu.visible()[:2] == ["today", "schedule"] and "personal" not in navmenu.visible()
+    ed = navmenu.NavEditor(win)
+    ed._add_cat()
+    cid = ed.cats[-1]["id"]
+    ed._rename(cid, "Hobi && Müzik")
+    i_sport = [i for i, (k, _) in enumerate(ed.items) if k == "sport"][0]
+    ed._set_hidden(i_sport, True)
+    ed._rename("work", "Kinesis İşleri")
+    ed._move(0, 1)
+    ed._save()
+    win._ensure_pages()
+    win.nav.rebuild()
+    assert cid in win.pages and cid in win.nav.btns and "sport" not in win.nav.btns
+    assert navmenu.visible()[0] == "schedule"
+    assert t("cat_" + cid) == "Hobi && Müzik" and t("nav_work") == "Kinesis İşleri" and t("cat_work") == "Kinesis İşleri"
+    assert cid in CategoryPicker("personal").btns
+    tk = store.add("tasks", {"title": "Gitar çal", "category": cid, "done": False})
+    win.show_page(cid)
+    _pump(app)
+    assert win.pages[cid].c_tasks.body.count() >= 1
+    # sil: kayıtları Kişisel'e geçer, sayfa kalkar
+    ed = navmenu.NavEditor(win)
+    from PyQt6.QtWidgets import QMessageBox
+    orig = QMessageBox.question
+    QMessageBox.question = staticmethod(lambda *a, **k: QMessageBox.StandardButton.Yes)
+    try:
+        ed._remove([i for i, (k, _) in enumerate(ed.items) if k == cid][0])
+    finally:
+        QMessageBox.question = orig
+    ed._reset()
+    ed._save()
+    win._ensure_pages()
+    win.nav.rebuild()
+    assert store.get("tasks", tk["id"])["category"] == "personal" and cid not in win.pages
+    assert "sport" in win.nav.btns and t("nav_work") == "İş" and navmenu.visible()[0] == "today"
+    store.delete("tasks", tk["id"])
+    prefs.set("nav_layout", None)
+    win.show_page("today")
+    _pump(app)
+
+
+@step("projeler: logo karo, görev atama, ilerleme görevlerden, zaman çizelgesi, karta sürükle, İş / Eğitim ayrımı")
+def _projects(ctx):
+    store, win, app = ctx["store"], ctx["win"], ctx["app"]
+    from alphaapp.pages.projects import logo_pixmap, sorted_projects
+    from alphaapp.pages import task_row
+    p = store.add("projects", {"name": "BEDROCK", "category": "education", "status": "doing", "start":
+                               date.today().isoformat(), "due": (date.today() + timedelta(days=40)).isoformat()})
+    assert not logo_pixmap(p, 40).isNull()
+    a = store.add("tasks", {"title": "Rapor taslağı", "category": "education", "project": p["id"], "done": False,
+                            "due": (date.today() + timedelta(days=5)).isoformat()})
+    store.add("tasks", {"title": "Sunum", "category": "education", "project": p["id"], "done": True})
+    assert store.project_task_counts(p["id"]) == (1, 2) and store.project_progress(p) == 50.0
+    assert p in sorted_projects(store, "education") and p not in sorted_projects(store, "work")
+    from alphaapp.forms import FormDialog
+    d = FormDialog(win, store, "tasks", preset={"project": p["id"]})
+    assert d.fields["project"][1].currentData() == p["id"]
+    d.deleteLater()
+    r = task_row(win, a)
+    assert r.drag_data == "tasks:" + a["id"]
+    win.show_page("projects")
+    _pump(app)
+    page = win.pages["projects"]
+    assert p in page.timeline.projects and page.timeline.height() > 60
+    # başka bir görevi proje kartının bırakma işleviyle projeye ata
+    b = store.add("tasks", {"title": "Literatür", "category": "education", "done": False})
+    card = [c for c in page.findChildren(type(page.c_time)) if c.title_lbl.text() == "BEDROCK"][0]
+    card._drop[1]("tasks", b["id"])
+    assert store.get("tasks", b["id"])["project"] == p["id"]
+    win.show_page("education")
+    _pump(app)
+    assert win.pages["education"].c_proj.body.count() >= 1
+    for x in [x for x in store.all("tasks") if x.get("project") == p["id"]]:
+        store.delete("tasks", x["id"])
+    store.delete("projects", p["id"])
+
+
+@step("sürükle-bırak: ders görevi sınavlara / ders kartına bırakılınca sınav olur, geri al")
+def _drag_exam(ctx):
+    store, win, app = ctx["store"], ctx["win"], ctx["app"]
+    from alphaapp.pages import drop_task_to_exam
+    c = store.all("courses")[0]
+    tk = store.add("tasks", {"title": f"{c['name']}: Final", "category": "education", "done": False,
+                             "due": date.today().isoformat()})
+    n = len(store.all("exams"))
+    drop_task_to_exam(win)("tasks", tk["id"])
+    assert store.get("tasks", tk["id"]) is None and len(store.all("exams")) == n + 1
+    assert store.all("exams")[-1]["name"] == "Final" and store.all("exams")[-1]["course"] == c["id"]
+    win.toast_w._clicked()
+    _pump(app)
+    assert store.get("tasks", tk["id"]) is not None and len(store.all("exams")) == n
+    store.delete("tasks", tk["id"])
+
+
+@step("kütüphane: kapak duvarı, filtreler, aramadan gelen kayıt formdan kaydedilir, ilerlet, Şu an kartı, web'e gitmez")
+def _library(ctx):
+    import json
+    from alphaapp import library, web
+    from alphaapp.forms import FormDialog
+    from alphaapp.pages.library import SearchDialog, cover_pixmap
+    store, win, app = ctx["store"], ctx["win"], ctx["app"]
+    # arama sonucu seçilmiş gibi (ağa çıkmadan): preset → form → kayıt; bağlantılar korunur
+    sd = SearchDialog(win, "series")
+    sd._picked("series", {"title": "GIZLI_DIZI_Q", "year": "2022", "genres": ["Dram", "Gerilim"],
+                          "links": {"letterboxd": "https://letterboxd.com/x"}, "source": "tmdb:tv:1"},
+               {"total": 9, "seasons": 1, "creator": "Dan Erickson"}, None)
+    assert sd.preset["total"] == 9 and sd.preset["genres"] == "Dram, Gerilim" and sd.preset["year"] == 2022
+    d = FormDialog(win, store, "media", preset=dict(sd.preset, status="doing"))
+    d._save()
+    m = d.item
+    assert m["links"]["letterboxd"] and m["source"] == "tmdb:tv:1" and m["started"] and m["creator"] == "Dan Erickson"
+    assert not cover_pixmap(m, 120, 180).isNull()
+    store.add("media", {"type": "book", "title": "Dune", "status": "done", "finished": date.today().isoformat(),
+                               "rating": 4.5})
+    assert library.year_count(store, "book") == 1 and library.current(store)[0]["id"] == m["id"]
+    win.show_page("library")
+    _pump(app)
+    page = win.pages["library"]
+    assert len(page.wall.items) == 2
+    page.f_type.select("book")
+    _pump(app)
+    assert [x["title"] for x in page.wall.items] == ["Dune"]
+    page.f_type.select("all")
+    page.f_status.select("doing")
+    _pump(app)
+    assert [x["id"] for x in page.wall.items] == [m["id"]]
+    page.f_status.select("all")
+    _pump(app)
+    # raf: fare yaklaşınca dışarı çıkar, tıkla = kitap açılır / disk çıkar, Esc = kapanır
+    from alphaapp.pages.shelf import Shelf, MediaViewer, open_viewer
+    sh = page.wall
+    assert isinstance(sh, Shelf) and sh.rows and sh.height() > 100
+    i0, r0, _fw, _k = sh._geom()[0]
+    sh._set_hover(i0)
+    for _ in range(40):
+        sh._tick()
+    assert sh.anim.get(i0) == 1.0 and sh._geom()[0][2] > 10, sh.anim
+    assert sh._at(sh._geom()[0][1].center()) == i0
+    sh.repaint()
+    sh._set_hover(-1)
+    for _ in range(40):
+        sh._tick()
+    assert not sh.anim
+    for it in sh.items:
+        v = open_viewer(win, it)
+        v.timer.stop()
+        for tt in (0.0, 0.3, 0.6, 1.0):
+            v.t = tt
+            v.repaint()
+        v._tick()
+        v.close_anim()
+        for _ in range(40):
+            v.last = v.clock.elapsed() - 20
+            v._tick()
+            if v.t <= 0:
+                break
+        assert v.t == 0, v.t
+    _pump(app, 4)
+    assert not [w for w in win.findChildren(MediaViewer) if w.isVisible()]
+    # Şu an kartı ve ilerlet: dizi 1 bölüm; son bölümde bitti
+    win.show_page("today")
+    _pump(app)
+    assert win.pages["today"].c_now.isVisible()
+    assert library.progress_text(m, __import__("alphaapp.i18n", fromlist=["t"]).t)
+    for _ in range(9):
+        library.bump(store, store.get("media", m["id"]))
+    m2 = store.get("media", m["id"])
+    assert m2["status"] == "done" and m2["progress"] == 9 and m2["finished"]
+    _pump(app)
+    assert not win.pages["today"].c_now.isVisible()
+    txt = json.dumps(web.build_snapshot(store), ensure_ascii=False)
+    assert "GIZLI_DIZI_Q" not in txt and '"media"' not in txt
+    # ekran görüntüsü için birkaç kayıt kalsın (kapaksız: tür ikonu + başlık)
+    store.add("media", {"type": "series", "title": "Severance", "status": "doing", "progress": 4, "total": 19,
+                        "creator": "Dan Erickson"})
+    store.add("media", {"type": "podcast", "title": "Lex Fridman Podcast", "status": "want"})
+    store.add("media", {"type": "film", "title": "Interstellar", "status": "done", "rating": 5,
+                        "finished": date.today().isoformat(), "year": 2014})
+    store.delete("media", m["id"])
+    _pump(app)
+
+
+@step("spor: antrenman setleri, programdan başlat, 3B vücut (gelişim / programlar), rekorlar, vücut")
+def _fitness(ctx):
+    win, app, store = ctx["win"], ctx["app"], ctx["store"]
+    from datetime import timedelta
+    from alphaapp import fitness
+    from alphaapp.config import prefs, day_today
+    from alphaapp.pages.sport_ui import WorkoutDialog, TemplateDialog, focus_text
+    from PyQt6.QtCore import QPointF
+    td = day_today()
+    assert fitness.muscles_of("bench press")[0] == ("chest",)
+    assert fitness.muscles_of("Incline Dumbbell Curl")[0] == ("biceps",)
+    assert fitness.first_int("6-8") == 6 and fitness.intensity(18) == 3 and fitness.intensity(26) == 5
+    assert abs(fitness.e1rm(100, 5) - 116.6667) < 0.01 and fitness.e1rm(80, 1) == 80
+    # eski antrenman (3 gün önce): Bench 60×8 ×3
+    d3 = (td - timedelta(days=3)).isoformat()
+    store.add("workouts", {"date": d3, "kind": "Gym", "exercises": [
+        {"name": "Bench Press", "sets": [{"r": 8, "w": 60}, {"r": 8, "w": 60}, {"r": 6, "w": 62.5}]}]})
+    tp = store.add("templates", {"name": "PUSH", "exercises": [
+        {"name": "Bench Press", "sets": 3, "reps": "6-8", "rir": "1"},
+        {"name": "Cable Fly", "sets": 3, "reps": "10", "rir": "1"}]})
+    assert fitness.template_sets(tp) == 6
+    load = fitness.muscle_load(tp["exercises"])
+    assert load["chest"] == 6 and load["front_delts"] == 3 and load["triceps"] == 1.5, load
+    # programdan başlat: set sayısı, tekrar, geçen seferki kilo dolu
+    d = WorkoutDialog(win, template=tp)
+    assert len(d.blocks) == 2 and len(d.blocks[0].rows) == 3
+    assert d.blocks[0].rows[0][1].value() == 6 and d.blocks[0].rows[0][2].value() == 60
+    assert d.blocks[0].rows[2][2].value() == 62.5
+    assert "60" in d.blocks[0].hint.text()
+    d.blocks[0].add_set()
+    assert len(d.blocks[0].rows) == 4 and d.blocks[0].rows[3][2].value() == 62.5
+    d.blocks[0]._remove_set(d.blocks[0].rows[3])
+    d.blocks[0].rows[0][2].setValue(70)
+    d.blocks[1].rows[0][2].setValue(15)
+    d._save()
+    w = d.item
+    assert w["template"] == tp["id"] and len(w["exercises"]) == 2 and w["exercises"][0]["sets"][0]["w"] == 70
+    assert "Göğüs" in w["focus"] or "Chest" in w["focus"], w["focus"]
+    assert fitness.best(store, "Bench Press")["w"] == 70
+    assert len(fitness.progress_series(store, "Bench Press")) == 2
+    assert fitness.last_sets(store, "Bench Press", before=td)[0]["w"] == 60
+    # düzenle: bloklar kayıttan gelir
+    d = WorkoutDialog(win, w)
+    assert len(d.blocks) == 2 and d.blocks[0].rows[0][2].value() == 70
+    d.remove_block(d.blocks[1])
+    d._save()
+    assert len(store.get("workouts", w["id"])["exercises"]) == 1
+    load, last = fitness.recent_load(store, 7, td)
+    assert load["chest"] == 6 and last["chest"] == td, (load, last)
+    assert focus_text(tp["exercises"])
+    # program penceresi
+    d = TemplateDialog(win)
+    d.name.setText("LEGS")
+    d.rows[0][1].setCurrentText("Leg Press")
+    d.add_row({"name": "Seated Calf Raise", "sets": 4})
+    d._save()
+    legs = d.item
+    assert [e["name"] for e in legs["exercises"]] == ["Leg Press", "Seated Calf Raise"]
+    assert legs["exercises"][1]["sets"] == 4
+    # sayfa kartları
+    store.add("body", {"date": (td - timedelta(days=20)).isoformat(), "weight": 85.4, "fat": 18})
+    store.add("body", {"date": td.isoformat(), "weight": 83})
+    prefs.set("goal_weight", 78)
+    win.show_page("sport")
+    _pump(app)
+    sp = win.pages["sport"]
+    sp.refresh()
+    _pump(app)
+    from alphaapp.components import Row
+    assert len([r for r in sp.c_tpl.findChildren(Row)]) == 2
+    # giriş kartı: gelişim (rekorlardan), son 7 gün, programlarım, popüler programlar
+    from alphaapp.body3d import Body3D, ModelView, load_frames
+    hero = sp.c_hero
+    hero._set_mode("dev")
+    _pump(app)
+    dev = fitness.development(store)
+    assert dev["chest"]["level"] == 2 and dev["chest"]["ex"] == "Bench Press", dev["chest"]
+    assert hero.model.heat["chest"] > 0 and "quads" not in hero.model.heat
+    store.add("lifts", {"date": td.isoformat(), "name": "Squat", "w": 120, "r": 1})
+    _pump(app)
+    hero.refresh()
+    assert fitness.best(store, "Squat")["w"] == 120 and "Squat" in fitness.logged_exercises(store)
+    assert hero.model.heat.get("quads", 0) > 0, hero.model.heat
+    for mode, key in (("week", "chest"), ("mine", "chest"), ("pop", "quads")):
+        hero._set_mode(mode)
+        _pump(app)
+        assert hero.model.heat.get(key, 0) > 0, (mode, hero.model.heat)
+    hero._pick("pop", "sl5")
+    _pump(app)
+    assert hero.model.heat["quads"] > 0.7, hero.model.heat
+    assert len(fitness.POPULAR) == 10
+    hero._set_mode("dev")
+    _pump(app)
+    # model: kas seçimi ve dönüş
+    mv = hero.model
+    mv.resize(360, mv.height())
+    mv.yaw = 0
+    mv._cache = None
+    mv.repaint()
+    if isinstance(mv, ModelView):
+        assert load_frames() is not None
+        r = mv._rect()
+        assert mv.muscle_at(QPointF(r.center().x() - r.width() * 0.07, r.top() + r.height() * 0.235)) == "chest"
+        assert mv.muscle_at(QPointF(2, 2)) is None
+    mv.turn_to(180)
+    for _ in range(80):
+        mv._tick()
+    assert mv.facing_back()
+    b3 = Body3D(300)
+    b3.resize(220, 300)
+    b3.set_heat({"chest": 1})
+    b3.yaw = 0
+    b3.repaint()
+    b3._render()
+    assert any(k == "chest" for _p, k in b3._polys)
+    assert len(sp.c_pr.findChildren(Row)) >= 1
+    assert len(sp.c_body.findChildren(Row)) == 2
+    from alphaapp.components import ElideLabel
+    subs = [lb.text() for r in sp.c_log.findChildren(Row) for lb in r.findChildren(ElideLabel)]
+    assert any("Bench Press" in x for x in subs), subs
+    for c in (sp.c_hero, sp.c_pr, sp.c_body):
+        c.repaint()
+    if ctx["shots"]:
+        _pump(app, 6)
+        win.grab().save(os.path.join(ctx["shots"], "sport_fitness.png"))
+        sp.c_hero.grab().save(os.path.join(ctx["shots"], "sport_hero.png"))
+        hero._set_mode("pop")
+        _pump(app, 4)
+        sp.c_hero.grab().save(os.path.join(ctx["shots"], "sport_hero_pop.png"))
+        hero._set_mode("dev")
+        sp.c_body.grab().save(os.path.join(ctx["shots"], "sport_body.png"))
+        sp.c_pr.grab().save(os.path.join(ctx["shots"], "sport_pr.png"))
+        sp.c_tpl.grab().save(os.path.join(ctx["shots"], "sport_tpl.png"))
+        dd = WorkoutDialog(win, template=tp)
+        dd.show()
+        _pump(app, 4)
+        dd.grab().save(os.path.join(ctx["shots"], "sport_workout_dialog.png"))
+        dd.close()
+
+
+@step("zihin: puanlama yok, uyku, meditasyon sayacı, nefes, ders kronometresi / zamanlayıcısı, menü, denge")
+def _mind(ctx):
+    win, app, store = ctx["win"], ctx["app"], ctx["store"]
+    from datetime import timedelta
+    from alphaapp import navmenu, balance
+    from alphaapp.config import prefs, day_today
+    from alphaapp.clock_ui import CourseClock
+    from alphaapp.pages.mind import sleep_hours, ClockPanel
+    td = day_today()
+    # menü: kayıtlı eski düzende "mind" yoktu → Spor'un ardına görünür eklenir
+    saved = prefs.get("nav_layout")
+    prefs.set("nav_layout", [{"k": k, "h": False} for k in ("today", "sport", "notes")])
+    lay = [k for k, _h in navmenu.layout()]
+    assert lay.index("mind") == lay.index("sport") + 1 and "mind" in navmenu.visible(), lay
+    prefs.set("nav_layout", saved)
+    assert sleep_hours({"bed": "23:30", "wake": "07:15"}) == 7.75 and sleep_hours({"bed": "x"}) is None
+    for i in range(1, 15):
+        d = td - timedelta(days=i)
+        store.add("sleep", {"date": d.isoformat(), "bed": "23:00", "wake": "07:30" if i % 2 else "05:00", "quality": 3})
+    # sayaç (sahte saat)
+    clk = win.clock
+    clk.cancel()
+    now = [1000.0]
+    clk.now = lambda: now[0]
+    n0 = len(store.all("sessions"))
+    clk.start("meditation", mode="timer", minutes=10, label="Meditasyon")
+    assert clk.running() and clk.display() == "10:00"
+    now[0] += 125
+    assert clk.display() == "07:55"
+    clk.pause()
+    now[0] += 500
+    assert clk.display() == "07:55" and not clk.running()
+    clk.resume()
+    assert prefs.get("clock")["kind"] == "meditation"
+    now[0] += 600
+    clk._tick()                                    # süre doldu → kaydedilir
+    assert not clk.active() and prefs.get("clock") is None
+    ses = store.all("sessions")[-1]
+    assert len(store.all("sessions")) == n0 + 1 and ses["kind"] == "meditation" and ses["minutes"] == 10.0, ses
+    clk.start("meditation")
+    now[0] += 20
+    assert clk.stop() is None and len(store.all("sessions")) == n0 + 1    # 1 dk'dan kısa: kaydedilmez
+    # ders: kronometre ders kartında, çalışma karesi işaretlenir
+    course = store.all("courses")[0]
+    store.update("courses", course["id"], study_days=[])
+    win.show_page("education")
+    _pump(app)
+    cc = [w for w in win.pages["education"].findChildren(CourseClock) if w.c["id"] == course["id"]][0]
+    cc.b_sw.click()
+    assert clk.is_for("study", course["id"]) and win.clock_pill.isVisibleTo(win)
+    assert cc.b_stop.isVisibleTo(cc) and not cc.b_sw.isVisibleTo(cc)
+    assert course.get("name", "") in win.clock_pill.text()
+    now[0] += 45 * 60
+    clk._tick()
+    assert "45:00" in cc.lbl.text(), cc.lbl.text()
+    cc.b_stop.click()
+    _pump(app)
+    assert td.isoformat() in store.get("courses", course["id"])["study_days"]
+    assert store.all("sessions")[-1]["course"] == course["id"] and store.all("sessions")[-1]["minutes"] == 45.0
+    cc2 = [w for w in win.pages["education"].findChildren(CourseClock) if w.c["id"] == course["id"]][-1]
+    assert "45 dk" in cc2.lbl.text() or "45 min" in cc2.lbl.text(), cc2.lbl.text()
+    # zihin sayfası
+    win.show_page("mind")
+    _pump(app)
+    mp = win.pages["mind"]
+    mp.refresh()
+    _pump(app)
+    assert not hasattr(mp, "t_mood") and not hasattr(mp, "c_check")
+    assert mp.t_sleep.val.text() not in ("", "—") and mp.t_study.val.text() not in ("", "—")
+    panel = mp.med_clock
+    assert isinstance(panel, ClockPanel)
+    mp._med_tab("timer")
+    panel._set_minutes(15)
+    assert panel.digits.text() == "15:00" and panel.pre_host.isVisibleTo(panel)
+    panel.go.click()
+    assert clk.is_for("meditation") and panel.done.isVisibleTo(panel)
+    now[0] += 61
+    clk._tick()
+    assert panel.digits.text() == "13:59", panel.digits.text()
+    panel.go.click()          # duraklat
+    assert not clk.running()
+    panel.reset.click()       # sıfırla: kaydetmez
+    assert not clk.active()
+    br = mp.breath
+    assert br.phase(0)[0] == 0 and br.phase(5)[0] == 1 and br.phase(9)[0] == 2
+    br.pat = "478"
+    assert br.phase(4.5)[0] == 1 and br.phase(12)[0] == 2
+    br.pat = "box"
+    rep = balance.area_report(store)
+    assert rep["mind"]["score"] is not None and rep["mind"]["parts"], rep["mind"]
+    import time as _time
+    clk.now = _time.time
+    if ctx["shots"]:
+        win.resize(1280, 900)
+        mp.verticalScrollBar().setValue(0) if hasattr(mp, "verticalScrollBar") else None
+        _pump(app, 6)
+        win.grab().save(os.path.join(ctx["shots"], "mind.png"))
+        for c, n in ((mp.c_med, "mind_med"), (mp.c_sleep, "mind_sleep"), (mp.c_study, "mind_study")):
+            c.grab().save(os.path.join(ctx["shots"], n + ".png"))
+        clk.start("study", course["id"], "timer", 25, label=course.get("name", ""))
+        win.show_page("education")
+        _pump(app, 6)
+        win.grab().save(os.path.join(ctx["shots"], "education_clock.png"))
+        clk.cancel()
+
+
+@step("ekonomi: anlık fiyat (sahte kaynak), yatırım değeri, net varlık, Varlıklarım kartı")
+def _markets(ctx):
+    win, app, store = ctx["win"], ctx["app"], ctx["store"]
+    from alphaapp import markets
+    asked = []
+
+    def fake(sym):
+        asked.append(sym)
+        table = {"USDTRY=X": (40.0, 39.0, "TRY"), "EURTRY=X": (45.0, 45.0, "TRY"), "GC=F": (3110.34768, 3000.0, "USD"),
+                 "BTC-USD": (100000.0, 100000.0, "USD"), "AAPL": (200.0, 190.0, "USD"), "THYAO.IS": (300.0, 310.0, "TRY")}
+        if sym not in table:
+            raise ValueError("unknown")
+        p, prev, c = table[sym]
+        return p, prev, c, 0
+
+    out, errs = markets.fetch(["USD", "GA", "AAPL", "THYAO", "NOPE.XX"], get=fake)
+    assert abs(out["USD"]["p"] - 40) < 1e-9 and abs(out["GA"]["p"] - 4000) < 1e-6, out
+    assert abs(out["AAPL"]["p"] - 8000) < 1e-6 and abs(out["AAPL"]["prev"] - 190 * 39) < 1e-6
+    assert out["THYAO"]["p"] == 300 and "THYAO.IS" in asked and "NOPE.XX" in errs, (out, errs)
+    assert markets.parse_code("Gram altın (GA)") == "GA" and markets.parse_code(" thyao.is ") == "THYAO.IS"
+    markets.remember(out)
+    gold = store.add("investments", {"name": "Altın", "kind": "Altın", "asset": "Gram altın (GA)", "qty": 10,
+                                     "invested": 30000, "value": 1})
+    manual = store.add("investments", {"name": "Fon", "kind": "Fon", "invested": 5000, "value": 6000})
+    assert abs(markets.value_of(gold) - 40000) < 1e-6 and markets.value_of(manual) == 6000
+    assert abs(markets.day_change(gold) - 10 * (4000 - 3000 * 39 / markets.OZ)) < 1e-6
+    nw = markets.net_worth(store)
+    assert nw["invest"] >= 46000 and nw["total"] == nw["cash"] + nw["invest"] + nw["owed"] - nw["owe"], nw
+    assert "GA" in markets.wanted(store)
+    win.show_page("finance")
+    _pump(app)
+    fp = win.pages["finance"]
+    fp.refresh()
+    _pump(app)
+    texts = [w.text() for w in fp.c_assets.findChildren(QLabel)]
+    assert any(x.startswith("4.000") or x.startswith("4,000") for x in texts) and "Gram altın" in texts, texts
+    if ctx["shots"]:
+        win.resize(1280, 900)
+        _pump(app, 6)
+        fp.c_assets.grab().save(os.path.join(ctx["shots"], "finance_assets.png"))
+    store.delete("investments", gold["id"])
+    store.delete("investments", manual["id"])
+    # alınacaklar: işaretle = alındı (sona iner, toplamdan düşer), telefona gitmez
+    from alphaapp import web
+    import json
+    from alphaapp.pages.wishlist import WishCard
+    a = store.add("wishlist", {"name": "GIZLI_ALINACAK", "price": 1350, "category": "Gadget"})
+    b = store.add("wishlist", {"name": "Lamy Safari dolma kalem", "price": 500, "category": "Kırtasiye"})
+    more = [store.add("wishlist", {"name": n, "category": c}) for n, c in
+            (("Bose QuietComfort 35", "Elektronik"), ("New Balance 1000", "Giyim"), ("Döküm demlik", "Ev"))]
+    fp.tabs.select("wish")
+    fp.refresh()
+    _pump(app)
+    assert fp.c_wish.isVisible() and not fp.c_inv.isVisible()
+    assert "1.850" in fp.c_wish.sub_lbl.text() or "1,850" in fp.c_wish.sub_lbl.text(), fp.c_wish.sub_lbl.text()
+    cards = {c.w["id"]: c for c in fp.c_wish.grid.cards}
+    assert len(cards) == 5
+    if ctx["shots"]:
+        win.resize(1280, 900)
+        _pump(app, 6)
+        fp.c_wish.grab().save(os.path.join(ctx["shots"], "finance_wish.png"))
+    cards[a["id"]].btn.click()
+    _pump(app)
+    assert store.get("wishlist", a["id"])["bought"] and store.get("wishlist", a["id"])["bought_at"]
+    assert "500" in fp.c_wish.sub_lbl.text() and "1.850" not in fp.c_wish.sub_lbl.text()
+    assert a["id"] not in {c.w["id"] for c in fp.c_wish.grid.cards}
+    fp.c_wish._set_filter("bought")
+    assert [c.w["id"] for c in fp.c_wish.grid.cards] == [a["id"]]
+    assert isinstance(fp.c_wish.grid.cards[0], WishCard)
+    fp.c_wish._set_filter("c:Ev")
+    assert [c.w["name"] for c in fp.c_wish.grid.cards] == ["Döküm demlik"]
+    fp.c_wish._set_filter("all")
+    assert "GIZLI_ALINACAK" not in json.dumps(web.build_snapshot(store), ensure_ascii=False)
+    for x in [a, b] + more:
+        store.delete("wishlist", x["id"])
+    fp.tabs.select("tx")
+
+
+@step("kütüphane: oyun türü (Steam araması sahte, ayrıntı, saat ilerlemesi, rafta kutu)")
+def _games(ctx):
+    win, app, store = ctx["win"], ctx["app"], ctx["store"]
+    from alphaapp import library
+    from alphaapp.i18n import t
+    from alphaapp.pages.shelf import DISC_TYPES
+    assert "game" in library.TYPES and "game" in DISC_TYPES
+    real = library._get
+
+    def fake(url, headers=None, raw=False):
+        if "storesearch" in url:
+            return {"items": [{"id": 1, "name": "Outer Wilds", "type": "app"},
+                              {"id": 2, "name": "Outer Wilds Soundtrack", "type": "app"}]}
+        if "appdetails" in url:
+            return {"1": {"data": {"name": "Outer Wilds", "developers": ["Mobius Digital"],
+                                   "release_date": {"date": "18 Haz 2020"}, "genres": [{"description": "RYO"}]}}}
+        raise OSError(url)
+    library._get = fake
+    try:
+        r = library.search("game", "outer wilds")
+        assert [x["title"] for x in r] == ["Outer Wilds"] and r[0]["source"] == "steam:1", r
+        d = library.steam_details("steam:1")
+        assert d["creator"] == "Mobius Digital" and d["year"] == "2020" and d["genres"] == ["Rol yapma"], d
+    finally:
+        library._get = real
+    g = store.add("media", {"type": "game", "title": "Outer Wilds", "status": "doing", "progress": 3, "total": 22})
+    assert library.progress_text(store.get("media", g["id"]), t) in ("3/22 saat", "3/22 h")
+    library.bump(store, store.get("media", g["id"]))
+    assert store.get("media", g["id"])["progress"] == 4
+    win.show_page("library")
+    _pump(app, 4)
+    win.pages["library"].refresh()
+    _pump(app, 4)
+    store.delete("media", g["id"])
 
 
 @step("ekran görüntüleri")

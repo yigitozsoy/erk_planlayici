@@ -77,6 +77,9 @@ class TodayPage(Page):
         self.c_week = Card(t("week_summary"))
         self.row(self.c_dead, self.c_week, stretches=[3, 2])
 
+        from .library import now_card
+        self.c_now = now_card(win)          # kütüphane: şu an okunan / izlenen (boşsa gizli)
+        self.add(self.c_now)
         self.c_pinned = Card(t("pinned_notes"))
         self.add(self.c_pinned)
 
@@ -169,6 +172,7 @@ class TodayPage(Page):
 
     def refresh(self):
         s, win = self.store, self.win
+        self.c_now.fill()
         now = datetime.now()
         td = day_today()
         name = (prefs.get("name") or "").strip()

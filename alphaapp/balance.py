@@ -122,6 +122,17 @@ def area_report(store, end=None, window=WINDOW):
     if store.all("days"):
         parts["growth"].append((t("bal_plans", n=n_plan, m=window), _clip(n_plan / (window * 0.8))))
 
+    # --- zihin: ruh hali, uyku, meditasyon
+    from .pages.mind import sleep_hours
+    hrs = [h for x in store.all("sleep") if inside(parse_date(x.get("date"))) for h in [sleep_hours(x)] if h]
+    if len(hrs) >= 3:
+        avg = sum(hrs) / len(hrs)
+        parts["mind"].append((t("bal_sleep", v=_fmt(avg)), _clip(1 - abs(avg - 7.75) / 2.5)))
+    med = {parse_date(x.get("date")) for x in store.all("sessions") if x.get("kind") == "meditation"}
+    if any(x.get("kind") == "meditation" for x in store.all("sessions")):
+        n = sum(1 for d in med if inside(d))
+        parts["mind"].append((t("bal_med", n=_fmt(n / weeks)), _clip(n / weeks / 4.0)))
+
     # --- hedeflere emek (son parça)
     for ar in LIFE_AREAS:
         if ar in has_goal:
