@@ -51,7 +51,7 @@ class TitleBar(QWidget):
         lay.addLayout(box)
 
         lay.addStretch(1)
-        self.btn_add = IconButton("add", t("quick_add") + " (Ctrl+N)", 40, 24)
+        self.btn_add = IconButton("add", t("quick_add"), 40, 24)
         self.btn_add.clicked.connect(self.quick_add.emit)
         self.btn_desk = IconButton("widgets", t("desk_tip"), 40, 22, checkable=True)
         self.btn_desk.clicked.connect(self.desk_clicked.emit)

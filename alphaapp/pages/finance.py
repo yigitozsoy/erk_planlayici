@@ -1,14 +1,14 @@
 """Ekonomik durum: aylık gelir/gider, son 6 ay, gider kategorileri, borç & alacak, yatırımlar."""
-from collections import Counter
 from datetime import date
 
-from PyQt6.QtWidgets import QHBoxLayout, QLabel, QWidget
+from PyQt6.QtWidgets import QHBoxLayout, QLabel, QVBoxLayout, QWidget
 
 from ..config import day_today, prefs
-from ..components import Page, Card, Row, StatTile, TileGrid, BarChart, HBars, ChipBar
+from ..components import Page, Card, Row, StatTile, TileGrid, BarChart, ChipBar
 from ..forms import edit_item, bind_row
 from ..i18n import t, fmt_money, fmt_day, fmt_day_month, fmt_month, due_badge, MONTHS_SHORT, fmt_num
 from ..store import parse_date, num
+from .budget_view import BudgetCard, SubsCard
 from ..widgets import IconButton
 from .. import markets
 from .assets import AssetsCard
@@ -51,10 +51,17 @@ class FinancePage(Page):
         self.c_chart.head_widget(leg)
         self.chart = BarChart(roles=("good", "bad"), names=(t("income"), t("expense")), fmt=fmt_money, height=190)
         self.c_chart.layout().addWidget(self.chart)
-        self.c_cats = Card(t("expense_by_cat"))
-        self.cats = HBars("bad", fmt=fmt_money)
-        self.c_cats.layout().addWidget(self.cats)
-        self.row(self.c_chart, self.c_cats, stretches=[3, 2])
+        # sağ sütun: bu ayın bütçesi (grup tavanları) + abonelikler
+        self.c_budget = BudgetCard(win)
+        self.c_subs = SubsCard(win)
+        side = QWidget()
+        sl = QVBoxLayout(side)
+        sl.setContentsMargins(0, 0, 0, 0)
+        sl.setSpacing(16)
+        sl.addWidget(self.c_budget)
+        sl.addWidget(self.c_subs)
+        sl.addStretch(1)
+        self.row(self.c_chart, side, stretches=[3, 2])
 
         # sekmeler: hareketler / borç & alacak / yatırımlar
         self.tabs = ChipBar([("tx", t("tab_tx")), ("debts", t("tab_debts")), ("fixed", t("tab_fixed")),
@@ -134,13 +141,8 @@ class FinancePage(Page):
             data.append((ms[m - 1], [a, b]))
         self.chart.set_data(data)
 
-        cnt = Counter()
-        for tr in s.all("transactions"):
-            d = parse_date(tr.get("date"))
-            if d and d.year == td.year and d.month == td.month and tr.get("kind") != "income":
-                cnt[tr.get("category") or t("other")] += num(tr.get("amount"))
-        self.cats.set_data(cnt.most_common(8), t("no_expense_month"))
-        self.c_cats.set_sub(fmt_month(td.year, td.month))
+        self.c_budget.refresh()
+        self.c_subs.refresh()
 
         # --- hareketler
         y, m = self.ym

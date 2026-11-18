@@ -1,7 +1,8 @@
 """Veri deposu: tüm kayıtlar tek JSON dosyasında (config.DATA_FILE: Documents\\alpha\\data.json).
 
 Koleksiyonlar (her kayıt bir dict, "id" alanı otomatik):
-  tasks        yapılacaklar   title, category, due, time, end, priority, done, done_at, note, project (proje id)
+  tasks        yapılacaklar   title, category, due, time, end, priority, done, done_at, note, project (proje id),
+               repeat (daily | weekdays | weekly | monthly | "w:0,2,4"; bitince sonraki açılır → next_id, quick.py)
   routine      haftalık program title, category, days[0-6], start, end, place, from, until (tarih aralığı), skip[iso] (o gün yok)
   courses      dersler        name, code, credits, target (harf), note, study_days[iso] (çalışma kareleri)
   exams        sınav/ödev     course, name, date, weight, target, score
@@ -12,6 +13,7 @@ Koleksiyonlar (her kayıt bir dict, "id" alanı otomatik):
   sleep        uyku           date (uyanılan gün), bed, wake ("HH:MM"), quality (1-5), note
   sessions     sayaç oturumu  date, kind (study | meditation), minutes, course, start, mode (clock.py)
   lifts        rekor (PR)     date, name, w, r, note (antrenman günlüğüne girmez; fitness.history okur)
+  lift_goals   antrenman hedefi name (hareket), w (kg), r (tekrar, boşsa 1), by (tarih), note (overload.py)
   projects     projeler       name, category (work / education / ...), status, start, due, progress (görev yoksa),
                logo (DATA_DIR\\images içindeki dosya adı), note. Görevler task.project ile bağlanır.
   events       sosyal plan    title, date, time, people, place, note
@@ -58,7 +60,7 @@ from .config import DATA_FILE, BACKUP_DIR, prefs
 COLLECTIONS = ("tasks", "routine", "courses", "exams", "workouts", "projects", "events", "birthdays",
                "transactions", "debts", "investments", "notes", "days", "habits", "meals", "accounts",
                "recurring", "goals", "wheel", "transcript", "media", "templates", "body", "lifts",
-               "mood", "sleep", "sessions", "wishlist", "cv", "bucket", "places", "foods")
+               "mood", "sleep", "sessions", "wishlist", "cv", "bucket", "places", "foods", "lift_goals")
 
 CATEGORIES = ("education", "work", "sport", "social", "finance", "personal")
 
@@ -291,7 +293,30 @@ class Store(QObject):
             return None
         x.update(fields)
         self._touch(coll)
+        if coll == "tasks" and "done" in fields:
+            self._repeat_task(x)
         return x
+
+    def _repeat_task(self, x):
+        """Tekrarlayan görev (repeat) bitince bir sonraki tarihe yenisi açılır (next_id); geri alınınca o silinir."""
+        if x.get("done") and x.get("repeat") and not x.get("next_id"):
+            from .quick import next_due
+            nd = next_due(x["repeat"], parse_date(x.get("due")), day_today())
+            if nd is None:
+                return
+            keep = ("title", "category", "time", "end", "priority", "project", "note", "repeat")
+            nx = self.add("tasks", {k: x.get(k) for k in keep if x.get(k) is not None}
+                          | {"due": nd.isoformat(), "done": False})
+            x["next_id"] = nx["id"]
+            x["repeat"] = None              # dizi yeni kayıtla sürer; biten kopya tekrar üretmez
+            x["repeat_was"] = nx["repeat"]
+        elif not x.get("done") and x.get("next_id"):
+            nx = self.get("tasks", x["next_id"])
+            if nx is not None and not nx.get("done"):
+                self.delete("tasks", nx["id"])
+            x["repeat"] = x.get("repeat") or x.get("repeat_was")
+            x.pop("next_id", None)
+            x.pop("repeat_was", None)
 
     def delete(self, coll, item_id):
         """Silinen kaydı (ve dizindeki yerini) döndürür; restore() ile geri alınır."""

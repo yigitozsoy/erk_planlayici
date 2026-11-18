@@ -26,6 +26,7 @@ class TodayPage(Page):
         self.action(t("add_task"), lambda: edit_item(win, "tasks", preset={"due": day_today().isoformat()}),
                     icon="add")
         self.action(t("plan_day"), win.open_plan, icon="sunrise")
+        self.action(t("sd_open"), win.open_shutdown, icon="moon")
 
         # sabah planı yapılmadıysa üstte davet
         self.c_plan = Card(t("plan_banner_title"), t("plan_banner_sub"))
@@ -44,6 +45,24 @@ class TodayPage(Page):
         self.c_plan.layout().addSpacing(4)
         self.c_plan.layout().addLayout(bl)
         self.add(self.c_plan)
+
+        # akşam: kapanış yapılmadıysa davet (prefs shutdown_hour sonrası)
+        self.c_shut = Card(t("sd_banner_title"), t("sd_banner_sub"))
+        self.c_shut.setObjectName("CardToday")
+        bl = QHBoxLayout()
+        bl.setSpacing(8)
+        for text, role, cb in ((t("sd_banner_go"), "Primary", win.open_shutdown),
+                               (t("plan_banner_not_today"), "Flat", self._shut_not_today)):
+            b = QPushButton(text)
+            b.setObjectName(role)
+            b.setCursor(Qt.CursorShape.PointingHandCursor)
+            b.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+            b.clicked.connect(cb)
+            bl.addWidget(b)
+        bl.addStretch(1)
+        self.c_shut.layout().addSpacing(4)
+        self.c_shut.layout().addLayout(bl)
+        self.add(self.c_shut)
 
         self.c_prog = Card(t("today_program"), add_tip=t("add_routine"))
         self.c_prog.add_clicked.connect(lambda: edit_item(win, "routine"))
@@ -167,6 +186,10 @@ class TodayPage(Page):
             c.add(bind_row(win, r, x["coll"], item) if item is not None else r)
         if not lst:
             c.empty(t("cal_empty"))
+
+    def _shut_not_today(self):
+        prefs.set("last_shutdown", day_today().isoformat())
+        self.c_shut.hide()
 
     def _plan_not_today(self):
         prefs.set("last_plan", day_today().isoformat())
@@ -327,6 +350,10 @@ class TodayPage(Page):
             self.c_pinned.add(r)
 
         # alt başlık + günün hedefi
-        self.c_plan.setVisible(bool(prefs.get("morning_plan", True)) and prefs.get("last_plan") != td.isoformat())
+        from .shutdown import is_due
+        shut = is_due(now)
+        self.c_shut.setVisible(shut)
+        self.c_plan.setVisible(not shut and bool(prefs.get("morning_plan", True))
+                               and prefs.get("last_plan") != td.isoformat())
         intention = (s.day(td) or {}).get("intention", "")
         self.set_sub(fmt_long_date(td) + (f"   ·   “{intention}”" if intention else ""))

@@ -202,6 +202,26 @@ alphaapp/
                   2.0: dünün özeti (StatTile'lar), ilerleme çubuğu, 1. adımda 1-5/Del/↑↓/Enter kısayolları (QShortcut,
                   yalnızca adım 0'da etkin — yazı alanları yutulmasın), 2. adımda timeline.DayTimeline (boşluğa tıkla →
                   saatsiz bir işi o saate koy). "plan" hiçbir zaman last_page olmaz; prefs değişince Bugün'ü mark_dirty() ile yenile.
+  pages/shutdown.py akşam kapanışı ("shutdown" anahtarı, menüde yok, win.open_shutdown): 1 bugün (karolar + sabahki
+                  hedef oldu / kısmen / olmadı → days.intention_met) 2 kalanlar (yarın / tarihsiz / bitti / sil, plan.CarryRow
+                  choices=..., İleri'de uygulanır + geri al; işaretlenmemiş alışkanlıklar) 3 yarın (program, odak = task.focus
+                  yarının iso'su → sabah planında seçili gelir, bütçe uyarıları) 4 not (days.shutdown_note → sabah planı 1. adımda
+                  "Dün akşamki notun"). Bugün'de davet kartı c_shut: shutdown.is_due() (prefs evening_shutdown, shutdown_hour 18,
+                  last_shutdown); akşam sabah davetini gizler.
+  bütçe           budget.py: GROUPS (grup → alt kategoriler; gider formundaki kategori listesi EXPENSE_CATS bu sırayla), group_of
+                  (eski / serbest adlar _ALIAS ile), prefs budgets {grup: tavan}, status / alerts (%80), subscriptions (recurring,
+                  kategori Abonelik). Ekonomi'de pages/budget_view: BudgetCard (çubuk + ayın geçen kısmı çizgisi, tıkla = tavan)
+                  + SubsCard ("Nereye harcadım" kartının yerine, grafiğin sağında).
+  antrenman hedef overload.py + pages/sport_goals.py: lift_goals koleksiyonu (name, w, r, by) → hedef e1RM; trend (son 10 hafta
+                  eğim, kg/hafta) + eta; suggest = çift ilerleme (tekrar aralığı programdaki reps'ten, yoksa 6-10; step_of artış);
+                  weekly_volume. Rekorlar kartında seçili hareket: öneri satırı, hedef satırı / "Hedef koy", grafikte hedef
+                  çizgisi, haftalık hacim; yanında LiftGoalsCard. Kullanıcı antrenmanda uygulamayı kullanmıyor: dinlenme
+                  sayacı vb. antrenman içi özellik ekleme.
+  hızlı komut     quick.py (İngilizce, Todoist tarzı; parse saf fonksiyon, parse_for store'la): tarih / saat / aralık / #kategori /
+                  !öncelik / +proje / every … tekrar; "spent 120 coffee" → harcama. Ctrl+N = quick_ui.QuickDialog (önizleme,
+                  "Formlar…" eski menü; titlebar + düğmesi menü). QuickTask satırları da çözümler. Tekrarlayan görev: task.repeat
+                  (daily / weekdays / weekly / monthly / "w:0,2,4"); store.update done=True → _repeat_task sonrakini açar
+                  (next_id, biten kopyada repeat_was), done=False geri alır.
   pickers.py      DateButton / TimeButton: formlarda (OptDate / OptTime), spor arası, antrenman, uyku. Tıkla → açılır
                   takvim (MonthCalendar; başlık → 12 ay → 12'şer yıl; üstte "17.11.2026" yazıp Enter; Bugün / Yarın /
                   Gelecek hafta) ya da saat (00-23) + dakika (5 dk) ızgarası,
@@ -264,4 +284,4 @@ Spor sayfasında "Besin kütüphanesi" kartı (sağ tık / ⋮ > Bugüne ekle…
 
 ## Açık fikirler (sürüm 2)
 Google Takvim (iki yönlü) + hatırlatıcılarla telefona bildirim, Gmail'den kredi kartı ekstresi → Ekonomi,
-Google Tasks eşitleme, kilo/ölçü takibi, aylık bütçe hedefi, tekrarlayan görevler, sistem tepsisi.
+Google Tasks eşitleme, sistem tepsisi. (Bütçe tavanı, tekrarlayan görev, kilo takibi yapıldı.) Öneri listesinden kalan: "Bugün neye çalışayım" (sınava kalan gün × eksik kare).

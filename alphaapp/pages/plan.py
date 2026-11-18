@@ -42,7 +42,7 @@ def _button(text, role="Pill", cb=None, icon=None):
 class CarryRow(QWidget):
     """Geciken iş + karar çipleri."""
 
-    def __init__(self, task, current, on_pick):
+    def __init__(self, task, current, on_pick, choices=CHOICES, keys=True):
         super().__init__()
         lay = QHBoxLayout(self)
         lay.setContentsMargins(0, 0, 0, 0)
@@ -58,9 +58,10 @@ class CarryRow(QWidget):
                        icon_role="bad" if task.get("priority") == "high" else "text2")
         lay.addWidget(self.row, 1)
         self.btns = {}
-        for i, c in enumerate(CHOICES):
-            b = _button(f"{i + 1}  {t('plan_ch_' + c)}", "Chip")
-            b.setToolTip(t("plan_key_tip", k=i + 1))
+        for i, c in enumerate(choices):
+            b = _button(f"{i + 1}  {t('plan_ch_' + c)}" if keys else t("plan_ch_" + c), "Chip")
+            if keys:
+                b.setToolTip(t("plan_key_tip", k=i + 1))
             b.setCheckable(True)
             b.clicked.connect(lambda _=False, k=c: (self.select(k), on_pick(task["id"], k)))
             lay.addWidget(b)
@@ -143,7 +144,10 @@ class PlanPage(Page):
         y_title.setObjectName("SubTitle")
         self.carry_keys = QLabel(t("plan_keys_hint"))
         self.carry_keys.setObjectName("Secondary")
-        self.s_carry = self._wrap(y_title, self.y_grid, self.c_carry, self.carry_keys)
+        self.y_note = QLabel()
+        self.y_note.setObjectName("TodayIntention")
+        self.y_note.setWordWrap(True)
+        self.s_carry = self._wrap(y_title, self.y_grid, self.y_note, self.c_carry, self.carry_keys)
         self.s_carry.layout().setSpacing(10)
         self.carry_order = []
         self.cur = 0
@@ -356,6 +360,9 @@ class PlanPage(Page):
         done_y = sum(1 for x in tasks if x.get("done") and day_of(x.get("done_at")) == yd)
         left_y = sum(1 for x in tasks if not x.get("done") and parse_date(x.get("due")) == yd)
         total = done_y + left_y
+        note = (s.day(yd) or {}).get("shutdown_note", "")
+        self.y_note.setText(t("plan_y_note", x=note) if note else "")
+        self.y_note.setVisible(bool(note))
         self.y_tasks.set(f"{done_y}/{total}" if total else str(done_y),
                          t("plan_y_tasks_note", n=left_y) if left_y else (t("plan_y_all_done") if total else ""),
                          "good" if total and not left_y else None)

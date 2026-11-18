@@ -112,7 +112,9 @@ class SportPage(Page):
         self.c_pr = RecordsCard(win)
         self.c_body = BodyCard(win)
         self.tab_widgets["home"].append(self.add(self.c_body))
-        self.tab_widgets["train"].append(self.add(self.c_pr))
+        from .sport_goals import LiftGoalsCard
+        self.c_lgoals = LiftGoalsCard(win)
+        self.tab_widgets["train"].append(self.row(self.c_pr, self.c_lgoals, stretches=[3, 2]))
 
         # beslenme: bugünkü kalori / makrolar + öğünler
         self.c_food = Card(t("nutrition"))
@@ -492,7 +494,7 @@ class SportPage(Page):
         self.c_log.set_sub(t("n_total", n=len(ws_all)) if ws_all else "")
 
         self._fill_food()
-        for c in (self.c_stats, self.c_dev, self.c_hero, self.c_tpl, self.c_pr, self.c_body):
+        for c in (self.c_stats, self.c_dev, self.c_hero, self.c_tpl, self.c_pr, self.c_lgoals, self.c_body):
             c.refresh()
 
         self.c_plan.clear()

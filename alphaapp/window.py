@@ -158,7 +158,7 @@ class MainWindow(QMainWindow):
         for i in range(9):   # Ctrl+1..9: menüdeki sıraya göre
             sc = QShortcut(QKeySequence(f"Ctrl+{i + 1}"), self)
             sc.activated.connect(lambda i=i: self._nth_page(i))
-        for seq, fn in (("Ctrl+N", self.quick_add_menu), ("Ctrl+,", self.show_prefs), ("F11", self.toggle_fullscreen),
+        for seq, fn in (("Ctrl+N", self.quick_command), ("Ctrl+,", self.show_prefs), ("F11", self.toggle_fullscreen),
                         ("Ctrl+B", lambda: self.set_nav(not self.nav.isVisible())),
                         ("F5", self.refresh_all)):
             sc = QShortcut(QKeySequence(seq), self)
@@ -169,7 +169,7 @@ class MainWindow(QMainWindow):
         start = prefs.get("start_page", "today")
         if start == "last":
             start = prefs.get("last_page", "today")
-        if start == "plan":
+        if start in ("plan", "shutdown"):
             start = "today"
         self.show_page(start if start in self.pages else "today")
         self.maybe_plan()
@@ -195,7 +195,7 @@ class MainWindow(QMainWindow):
             return
         self.stack.setCurrentWidget(page)
         self.nav.set_current(key)
-        if key != "plan":
+        if key not in ("plan", "shutdown"):
             prefs.set("last_page", key)
         self.current = key
 
@@ -245,6 +245,13 @@ class MainWindow(QMainWindow):
             self.bring_front()
         self.show_page("plan")
 
+    def open_shutdown(self):
+        """Akşam kapanışı ekranını baştan açar."""
+        self.pages["shutdown"].start()
+        if not self.isVisible() or self.isMinimized():
+            self.bring_front()
+        self.show_page("shutdown")
+
     def maybe_plan(self):
         """Günün ilk açılışında (öğleden önce) plan yapılmadıysa plan ekranını getirir."""
         today = day_today().isoformat()
@@ -275,9 +282,18 @@ class MainWindow(QMainWindow):
             self.toast(t("clock_saved", m=fmt_num(rec.get("minutes"), 0),
                          x=t("clock_" + (rec.get("kind") or "study"))))
 
+    def quick_command(self):
+        """Ctrl+N: tek satırlık komut (quick_ui); menü titlebar'daki + düğmesinde."""
+        from .quick_ui import open_quick
+        open_quick(self)
+
     def quick_add_menu(self):
         from .forms import edit_item
         m = QMenu(self)
+        a = QAction(t("qc_title") + "	Ctrl+N", m)
+        a.triggered.connect(self.quick_command)
+        m.addAction(a)
+        m.addSeparator()
         items = [("tasks", "qa_task"), ("routine", "qa_routine"), ("habits", "qa_habit"), None, ("exams", "qa_exam"),
                  ("workouts", "qa_workout"), ("sleep", "qa_sleep"), ("events", "qa_event"), None,
                  ("transactions", "qa_tx"), ("debts", "qa_debt"), None]

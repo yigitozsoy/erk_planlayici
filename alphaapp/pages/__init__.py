@@ -121,7 +121,11 @@ def build_pages(store, win, on_build):
         from .plan import PlanPage
         return PlanPage(store, win)
 
-    return LazyPages({"today": _today, "schedule": _schedule, "habits": _habits, "goals": _goals, "education": _education, "work": _work, "projects": _projects, "sport": _sport, "mind": _mind, "social": _social, "finance": _finance, "personal": _personal, "library": _library, "notes": _notes, "plan": _plan}, on_build)
+    def _shutdown():
+        from .shutdown import ShutdownPage
+        return ShutdownPage(store, win)
+
+    return LazyPages({"today": _today, "schedule": _schedule, "habits": _habits, "goals": _goals, "education": _education, "work": _work, "projects": _projects, "sport": _sport, "mind": _mind, "social": _social, "finance": _finance, "personal": _personal, "library": _library, "notes": _notes, "plan": _plan, "shutdown": _shutdown}, on_build)
 
 
 def time_lead(text, width=86):
@@ -157,6 +161,9 @@ def task_row(win, task, show_cat=True):
         badges.append((t("focus"), None))
     if task.get("priority") == "high" and not task.get("done"):
         badges.append((t("prio_high"), "warn"))
+    if task.get("repeat") and not task.get("done"):
+        from ..quick import repeat_label
+        badges.append(("↻ " + repeat_label(task["repeat"], t), None))
     if d and not task.get("done"):
         badges.append(due_badge(d))
     r = Row(task.get("title", ""), " · ".join(sub), check=bool(task.get("done")), badges=badges)
@@ -261,8 +268,13 @@ class QuickTask(QLineEdit):
         text = self.text().strip()
         if not text:
             return
-        self.win.store.add("tasks", {"title": text, "category": self.category, "priority": "normal", "done": False,
-                                     "due": day_today().isoformat() if self.due_today else None})
+        from ..quick import parse_for
+        coll, data = parse_for(self.win.store, text, self.category)
+        if coll == "tasks" and not data.get("due") and self.due_today:
+            data["due"] = day_today().isoformat()
+        self.win.store.add(coll, data)
+        if coll != "tasks":
+            self.win.toast(t("qc_added_" + coll))
         self.clear()
 
 

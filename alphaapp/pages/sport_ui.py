@@ -567,13 +567,25 @@ class RecordsCard(Card):
         bar = ChipBar([(n, n) for n in names[:8]], sel)
         bar.changed.connect(lambda k: (prefs.set("pr_ex", k), QTimer.singleShot(0, self.refresh)))
         self.add(bar)
+        from .sport_goals import suggest_row, goal_rows, volume_chart
+        from .. import overload
+        sr = suggest_row(self.store, sel)
+        if sr is not None:
+            self.add(sr)
+        for w in goal_rows(self.win, sel):
+            self.add(w)
         series = fitness.progress_series(self.store, sel)
         if series:
             lb = sub_label(t("pr_chart", n=sel))
             self.add(lb)
             ch = LineChart(150, "kg")
-            ch.set_data(series)
+            gs = overload.goals_for(self.store, sel)
+            ch.set_data(series, min(overload.goal_e1rm(g) for g in gs) if gs else None)
             self.add(ch)
+        vc = volume_chart(self.store, sel)
+        if vc is not None:
+            self.add(sub_label(t("ov_volume_title")))
+            self.add(vc)
         rows = []
         for n in names:
             b = fitness.best(self.store, n)

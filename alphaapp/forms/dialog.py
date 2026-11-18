@@ -107,6 +107,10 @@ class FormDialog(ThemedDialog):
             for k, label in opts:
                 w.addItem(label, k)
             i = w.findData(v)
+            if i < 0 and isinstance(v, str) and v.startswith("w:"):     # görev tekrarı: hızlı ekleden gelen günler
+                from ..quick import repeat_label
+                w.addItem(repeat_label(v, t), v)
+                i = w.count() - 1
             w.setCurrentIndex(max(0, i))
             return w
         if kind == "combo":

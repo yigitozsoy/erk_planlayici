@@ -54,8 +54,7 @@ def guess_exam(store, title):
                 kind = n
                 break
     return course, kind
-EXPENSE_CATS = ("Yemek", "Dışarıda yemek", "Market", "Akaryakıt", "Otopark", "Ulaşım", "Kira", "Faturalar", "Abonelik",
-                "Hobi", "Kahve", "Seyahat", "Eğlence", "Giyim", "Eğitim", "Sağlık", "Spor", "Hediye", "Diğer")
+from ..budget import EXPENSE_CATS  # noqa: E402  gruplu liste (budget.GROUPS)
 INCOME_CATS = ("Maaş", "Burs", "Harçlık", "Serbest iş", "Satış", "Faiz / getiri", "Diğer")
 INVEST_KINDS = ("Hisse", "Fon", "Altın", "Döviz", "Kripto", "Mevduat", "Tahvil / bono", "Diğer")
 
@@ -81,6 +80,14 @@ def schema(coll, store):
     return out
 
 
+def repeat_choices():
+    from ..quick import REPEATS, repeat_label
+    out = [(None, t("rep_none"))] + [(r, repeat_label(r, t)) for r in REPEATS]
+    # haftanın belirli günleri hızlı ekleden gelir ("every mon,wed"); sık kullanılan iki kalıp da listede
+    out += [(w, repeat_label(w, t)) for w in ("w:0,2,4", "w:1,3")]
+    return out
+
+
 def _schema(coll, store):
     if coll == "tasks":
         return [("title", "f_title", "text", None),
@@ -89,6 +96,7 @@ def _schema(coll, store):
                 ("time", "f_time", "time?", None),
                 ("end", "f_end", "time?", None),
                 ("priority", "f_priority", "choice", [(p, t("prio_" + p)) for p in TASK_PRIORITIES]),
+                ("repeat", "f_repeat", "choice", repeat_choices()),
                 ("project", "f_project", "choice", project_choices(store)),
                 ("note", "f_note", "multiline", None)]
     if coll == "routine":
@@ -173,6 +181,13 @@ def _schema(coll, store):
                 ("w", "f_lift_w", "number", None),
                 ("r", "f_lift_r", "number", None),
                 ("date", "f_date", "date", None),
+                ("note", "f_note", "multiline", None)]
+    if coll == "lift_goals":
+        from ..fitness import exercise_names
+        return [("name", "f_exercise", "combo", exercise_names(store)),
+                ("w", "f_lift_w", "number", None),
+                ("r", "f_lift_r", "number", None),
+                ("by", "f_by", "date?", None),
                 ("note", "f_note", "multiline", None)]
     if coll == "body":
         return [("date", "f_date", "date", None),
@@ -330,7 +345,7 @@ REQUIRED = {"tasks": "title", "routine": "title", "courses": "name", "exams": "c
             "events": "title", "birthdays": "name", "debts": "person", "investments": "name",
             "transactions": "amount", "workouts": "date", "habits": "name", "meals": "name",
             "accounts": "name", "recurring": "name", "goals": "title", "transcript": "name", "media": "title",
-            "lifts": "name", "wishlist": "name", "cv": "title", "bucket": "title", "places": "name",
+            "lifts": "name", "lift_goals": "name", "wishlist": "name", "cv": "title", "bucket": "title", "places": "name",
             "foods": "name"}
 
 GOAL_HORIZONS = ("life", "y10", "y3", "year", "term", "action")
@@ -355,13 +370,14 @@ def defaults(coll):
         "projects": {"status": "doing", "category": "work", "start": d},
         "media": {"type": "book", "status": "want"},
         "events": {"date": d},
-        "transactions": {"kind": "expense", "date": d, "category": "Yemek"},
+        "transactions": {"kind": "expense", "date": d, "category": "Market"},
         "debts": {"direction": "owe"},
         "investments": {"date": d, "kind": "Hisse"},
         "habits": {"category": "personal", "goal": 7, "kind": "build"},
         "meals": {"date": d},
         "body": {"date": d},
         "lifts": {"date": d, "r": 1},
+        "lift_goals": {"r": 1},
         "mood": {"date": d, "mood": 3},
         "sleep": {"date": d, "bed": prefs.get("sleep_bed", "23:30"), "wake": prefs.get("sleep_wake", "07:30")},
         "sessions": {"date": d, "kind": "study", "minutes": 25},
