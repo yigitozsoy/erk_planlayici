@@ -10,9 +10,9 @@ from smoke_base import step, _pump
 @step("kütüphane: kapak duvarı, filtreler, aramadan gelen kayıt formdan kaydedilir, ilerlet, Şu an kartı, web'e gitmez")
 def _library(ctx):
     import json
-    from alphaapp import library, web
-    from alphaapp.forms import FormDialog
-    from alphaapp.pages.library import SearchDialog, cover_pixmap
+    from erk import library, web
+    from erk.forms import FormDialog
+    from erk.pages.library import SearchDialog, cover_pixmap
     store, win, app = ctx["store"], ctx["win"], ctx["app"]
     # arama sonucu seçilmiş gibi (ağa çıkmadan): preset → form → kayıt; bağlantılar korunur
     sd = SearchDialog(win, "series")
@@ -42,7 +42,7 @@ def _library(ctx):
     page.f_status.select("all")
     _pump(app)
     # raf: fare yaklaşınca dışarı çıkar, tıkla = kitap açılır / disk çıkar, Esc = kapanır
-    from alphaapp.pages.shelf import Shelf, MediaViewer, open_viewer
+    from erk.pages.shelf import Shelf, MediaViewer, open_viewer
     sh = page.wall
     assert isinstance(sh, Shelf) and sh.rows and sh.height() > 100
     i0, r0, _fw, _k = sh._geom()[0]
@@ -76,7 +76,7 @@ def _library(ctx):
     win.show_page("today")
     _pump(app)
     assert win.pages["today"].c_now.isVisible()
-    assert library.progress_text(m, __import__("alphaapp.i18n", fromlist=["t"]).t)
+    assert library.progress_text(m, __import__("erk.i18n", fromlist=["t"]).t)
     for _ in range(9):
         library.bump(store, store.get("media", m["id"]))
     m2 = store.get("media", m["id"])
@@ -99,9 +99,9 @@ def _library(ctx):
 def _fitness(ctx):
     win, app, store = ctx["win"], ctx["app"], ctx["store"]
     from datetime import timedelta
-    from alphaapp import fitness
-    from alphaapp.config import prefs, day_today
-    from alphaapp.pages.sport_ui import WorkoutDialog, TemplateDialog, focus_text
+    from erk import fitness
+    from erk.config import prefs, day_today
+    from erk.pages.sport_ui import WorkoutDialog, TemplateDialog, focus_text
     from PyQt6.QtCore import QPointF
     td = day_today()
     assert fitness.muscles_of("bench press")[0][0] == "chest"
@@ -163,10 +163,10 @@ def _fitness(ctx):
     sp = win.pages["sport"]
     sp.refresh()
     _pump(app)
-    from alphaapp.components import Row
+    from erk.components import Row
     assert len([r for r in sp.c_tpl.findChildren(Row)]) == 2
     # giriş kartı: gelişim (rekorlardan), son 7 gün, programlarım, popüler programlar
-    from alphaapp.body3d import Body3D, ModelView, load_frames
+    from erk.body3d import Body3D, ModelView, load_frames
     hero = sp.c_hero
     hero._set_mode("dev")
     _pump(app)
@@ -222,7 +222,7 @@ def _fitness(ctx):
     assert any(k == "chest" for _p, k in b3._polys)
     assert len(sp.c_pr.findChildren(Row)) >= 1
     assert len(sp.c_body.findChildren(Row)) == 2
-    from alphaapp.components import ElideLabel
+    from erk.components import ElideLabel
     subs = [lb.text() for r in sp.c_log.findChildren(Row) for lb in r.findChildren(ElideLabel)]
     assert any("Bench Press" in x for x in subs), subs
     for c in (sp.c_hero, sp.c_pr, sp.c_body):
@@ -249,10 +249,10 @@ def _fitness(ctx):
 def _mind(ctx):
     win, app, store = ctx["win"], ctx["app"], ctx["store"]
     from datetime import timedelta
-    from alphaapp import navmenu, balance
-    from alphaapp.config import prefs, day_today
-    from alphaapp.clock_ui import CourseClock
-    from alphaapp.pages.mind import sleep_hours, ClockPanel
+    from erk import navmenu, balance
+    from erk.config import prefs, day_today
+    from erk.clock_ui import CourseClock
+    from erk.pages.mind import sleep_hours, ClockPanel
     td = day_today()
     # menü: kayıtlı eski düzende "mind" yoktu → Spor'un ardına görünür eklenir
     saved = prefs.get("nav_layout")
@@ -355,7 +355,7 @@ def _mind(ctx):
 @step("ekonomi: anlık fiyat (sahte kaynak), yatırım değeri, net varlık, Varlıklarım kartı")
 def _markets(ctx):
     win, app, store = ctx["win"], ctx["app"], ctx["store"]
-    from alphaapp import markets
+    from erk import markets
     asked = []
 
     def fake(sym):
@@ -395,9 +395,9 @@ def _markets(ctx):
     store.delete("investments", gold["id"])
     store.delete("investments", manual["id"])
     # alınacaklar: işaretle = alındı (sona iner, toplamdan düşer), telefona gitmez
-    from alphaapp import web
+    from erk import web
     import json
-    from alphaapp.pages.wishlist import WishCard
+    from erk.pages.wishlist import WishCard
     a = store.add("wishlist", {"name": "GIZLI_ALINACAK", "price": 1350, "category": "Gadget"})
     b = store.add("wishlist", {"name": "Lamy Safari dolma kalem", "price": 500, "category": "Kırtasiye"})
     more = [store.add("wishlist", {"name": n, "category": c}) for n, c in
@@ -433,9 +433,9 @@ def _markets(ctx):
 @step("kütüphane: oyun türü (Steam araması sahte, ayrıntı, saat ilerlemesi, rafta kutu)")
 def _games(ctx):
     win, app, store = ctx["win"], ctx["app"], ctx["store"]
-    from alphaapp import library
-    from alphaapp.i18n import t
-    from alphaapp.pages.shelf import DISC_TYPES
+    from erk import library
+    from erk.i18n import t
+    from erk.pages.shelf import DISC_TYPES
     assert "game" in library.TYPES and "game" in DISC_TYPES
     real = library._get
 
@@ -469,7 +469,7 @@ def _games(ctx):
 @step("Beden: ev sekmesinde başlar (kilo / yağ / gelişim), Antrenmanlar / Beslenme, ayrıntıya kaydırma sekme değiştirir")
 def _body_tabs(ctx):
     win, app = ctx["win"], ctx["app"]
-    from alphaapp.i18n import t
+    from erk.i18n import t
     sp = win.pages["sport"]
     win.show_page("sport")
     _pump(app)

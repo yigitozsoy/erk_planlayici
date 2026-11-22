@@ -28,7 +28,7 @@ jobs:
           QT_QPA_PLATFORM: offscreen
         run: |
           python -m pip install -r requirements.txt pyinstaller pyflakes Pillow
-          python -m pyflakes alphaapp tests
+          python -m pyflakes erk tests
           python tests/smoke_test.py
 
       - name: Derle
@@ -37,7 +37,7 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: alpha-windows
+          name: erk-windows
           path: build/installer/*
 
       - name: Sürüm yayınla

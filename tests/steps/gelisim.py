@@ -8,8 +8,8 @@ from smoke_base import step, _pump
 @step("antrenman hedefleri: e1RM ilerlemesi, eğilim / varış, çift ilerleme önerisi, haftalık hacim, kartlar")
 def _overload(ctx):
     win, app, store, shots = ctx["win"], ctx["app"], ctx["store"], ctx["shots"]
-    from alphaapp import overload
-    from alphaapp.config import prefs
+    from erk import overload
+    from erk.config import prefs
     td = date.today()
     name = "Overload Test Press"
     tpl = store.add("templates", {"name": "OT", "exercises": [{"name": name, "sets": 3, "reps": "8-10"}]})
@@ -59,9 +59,9 @@ def _overload(ctx):
 @step("hızlı komut: İngilizce tarih / saat / #kategori / !öncelik / tekrar / harcama, tekrarlayan görev + geri al")
 def _quick(ctx):
     win, app, store, shots = ctx["win"], ctx["app"], ctx["store"], ctx["shots"]
-    from alphaapp import quick
-    from alphaapp.quick_ui import QuickDialog
-    from alphaapp.pages import QuickTask
+    from erk import quick
+    from erk.quick_ui import QuickDialog
+    from erk.pages import QuickTask
     td = date(2026, 11, 18)          # çarşamba
     P = lambda s: quick.parse(s, td, projects=[("px", "Thesis")])[1]  # noqa: E731
     x = P("call mom tomorrow 6pm #social !")

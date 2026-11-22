@@ -12,10 +12,10 @@ def _pickers(ctx):
     win, app, store = ctx["win"], ctx["app"], ctx["store"]
     from datetime import timedelta
     from PyQt6.QtWidgets import QPushButton, QLineEdit
-    from alphaapp.config import day_today
-    from alphaapp.components import MonthCalendar
-    from alphaapp.forms import FormDialog, OptDate, OptTime
-    from alphaapp.pickers import DateButton, TimeButton
+    from erk.config import day_today
+    from erk.components import MonthCalendar
+    from erk.forms import FormDialog, OptDate, OptTime
+    from erk.pickers import DateButton, TimeButton
     from PyQt6 import sip
 
     def gone(w):
@@ -54,7 +54,7 @@ def _pickers(ctx):
     assert pop.st["mode"] == "months"
     title.click()
     assert pop.st["mode"] == "years"
-    from alphaapp.widgets import IconButton
+    from erk.widgets import IconButton
     prev = [b for b in pop.findChildren(IconButton) if b.toolTip() in ("Geri", "Back")][0]
     while pop.st["y0"] > 1998:
         prev.click()
@@ -122,8 +122,8 @@ def _cv(ctx):
     win, app, store = ctx["win"], ctx["app"], ctx["store"]
     import json
     import tempfile
-    from alphaapp import web
-    from alphaapp.pages import cv as cvmod
+    from erk import web
+    from erk.pages import cv as cvmod
     a = store.add("cv", {"side": "now", "section": "education", "title": "Makine Mühendisliği", "when": "2023 – "})
     b = store.add("cv", {"side": "dream", "section": "experience", "title": "GIZLI_CV_STAJ", "org": "Baykar"})
     c = store.add("cv", {"side": "dream", "section": "languages", "title": "Almanca", "detail": "B2"})
@@ -181,11 +181,11 @@ def _cv(ctx):
 def _places_bucket(ctx):
     import json
     from PyQt6.QtCore import QPoint, QPointF
-    from alphaapp.components import Row
-    from alphaapp.i18n import t
-    from alphaapp import web
-    from alphaapp.pages import places as pl
-    from alphaapp.pages.bucket import toggle_done
+    from erk.components import Row
+    from erk.i18n import t
+    from erk import web
+    from erk.pages import places as pl
+    from erk.pages.bucket import toggle_done
     from PyQt6.QtWidgets import QPushButton
     win, app, store = ctx["win"], ctx["app"], ctx["store"]
     g = pl.geo()
@@ -269,9 +269,9 @@ def _places_bucket(ctx):
 
 @step("spor girişi: Vücudum (kilo / yağ grafiği), Gelişimim yakın plan + max değer girişi, ayrıntıya kaydırma")
 def _sport_top(ctx):
-    from alphaapp.pages.sport_top import MaxDialog
-    from alphaapp.pages.sport_ui import LineChart
-    from alphaapp.config import prefs
+    from erk.pages.sport_top import MaxDialog
+    from erk.pages.sport_ui import LineChart
+    from erk.config import prefs
     win, app, store = ctx["win"], ctx["app"], ctx["store"]
     page = win.pages["sport"]
     win.show_page("sport")
@@ -303,8 +303,8 @@ def _sport_top(ctx):
     _pump(app)
     assert page.c_hero.mode == "dev"
     # ölçülerle yağ oranı (ABD Donanması): boyun / bel (/ kalça)
-    from alphaapp import fitness
-    from alphaapp.pages.sport_top import FatDialog
+    from erk import fitness
+    from erk.pages.sport_top import FatDialog
     assert fitness.navy_bodyfat("m", 180, 38, 85) == 16.1 and fitness.navy_bodyfat("f", 165, 32, 70) is None
     assert 20 < fitness.navy_bodyfat("f", 165, 32, 70, 95) < 30 and fitness.navy_bodyfat("m", 180, 50, 40) is None
     fd = FatDialog(win)
@@ -339,9 +339,9 @@ def _sport_top(ctx):
 
 @step("sadeleştirme: bölüm seçimi (hazır seçim, menüden gizle, veri kalır), ilk açılış koşulu, satırda ⋮ menü düğmesi")
 def _sections(ctx):
-    from alphaapp import navmenu
-    from alphaapp.components import Row
-    from alphaapp.config import prefs
+    from erk import navmenu
+    from erk.components import Row
+    from erk.config import prefs
     win, app, store = ctx["win"], ctx["app"], ctx["store"]
     old = prefs.get("nav_layout")
     assert not navmenu.should_onboard(store)          # kayıt varken ilk açılış penceresi çıkmaz
@@ -380,20 +380,20 @@ def _sections(ctx):
 
 @step("cila: hesap ipuçları, ikinci yedek klasörü, dar pencerede tek hafta, CV'de kırılabilen iletişim")
 def _polish(ctx):
-    from alphaapp.config import prefs
-    from alphaapp.pages.sport_ui import level_tip, e1rm_tip
-    from alphaapp.pages.cv import _breakable
+    from erk.config import prefs
+    from erk.pages.sport_ui import level_tip, e1rm_tip
+    from erk.pages.cv import _breakable
     win, app, store = ctx["win"], ctx["app"], ctx["store"]
     tip = level_tip("Bench Press", 100, 80)
     assert "36" in tip and "108" in tip and "1,25" in tip, tip       # eşikler kg cinsinden (80 kg × 1.0 × .45 / 1.35)
     assert "110" in e1rm_tip({"w": 100, "r": 3, "e1rm": 110})
     # ikinci yedek klasörü: varsa yazılır, yoksa sessizce atlanır
-    d = os.path.join(os.environ["ALPHA_DATA_DIR"], "usb")
+    d = os.path.join(os.environ["ERK_DATA_DIR"], "usb")
     os.makedirs(d, exist_ok=True)
     prefs.set("backup_dir", d)
     p = store.backup_now()
     assert p and os.path.exists(p) and os.path.dirname(p) == d, p
-    prefs.set("backup_dir", os.path.join(os.environ["ALPHA_DATA_DIR"], "yok_boyle_klasor"))
+    prefs.set("backup_dir", os.path.join(os.environ["ERK_DATA_DIR"], "yok_boyle_klasor"))
     assert store.backup_now() is None
     prefs.set("backup_dir", "")
     # dar pencerede yalnızca ilk hafta
@@ -409,8 +409,8 @@ def _polish(ctx):
     win.resize(old)
     _pump(app, 6)
     # not sistemi: okulun tablosu farklıysa harf karşılığı değişir
-    from alphaapp import grades
-    from alphaapp.dialogs import GradePointsDialog
+    from erk import grades
+    from erk.dialogs import GradePointsDialog
     assert grades.point("CB") == 2.5
     gd = GradePointsDialog(win)
     gd.spins["CB"].setValue(2.25)

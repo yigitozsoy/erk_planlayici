@@ -7,9 +7,9 @@ from smoke_base import step, _pump
 
 @step("komut satırı: besin kütüphanesi, gramla öğün (yarım öğün yazmaz), day özeti, list / add / set / del, alışkanlık")
 def _cli(ctx):
-    from alphaapp import cli, nutrition as nu
-    from alphaapp.config import day_today
-    from alphaapp.components import Row
+    from erk import cli, nutrition as nu
+    from erk.config import day_today
+    from erk.components import Row
     win, app, store = ctx["win"], ctx["app"], ctx["store"]
     td = day_today()
 

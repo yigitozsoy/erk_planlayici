@@ -1,8 +1,11 @@
-# alpha — Claude için proje notları
+# erk — Claude için proje notları
 
-**alpha**, Yiğit'in kişisel gösterge paneli (gamma ailesinin üçüncü uygulaması: gamma = oynatıcı, delta = toplantı
-tahtası + ekran alıntısı, alpha = dashboard). Sabah açınca günün planı hazır olsun diye yapıldı.
-Geliştiriciyle çalışma tarzı, tasarım zevki ve iş akışı kuralları **gamma ile aynı**:
+**erk** (eski adı **alpha**), Yiğit'in kişisel gösterge paneli. Uygulama ailesinin adı **tamga** (hep küçük harf):
+kamug = oynatıcı (eski gamma), yazıt = toplantı tahtası + ekran alıntısı (eski delta), erk = dashboard (eski alpha).
+"erk" Göktürkçe "güç, iradesine hâkim olma"; logo Göktürk **e** harfi (dikey gövde, üstten sola inen + alttan sağa
+çıkan kısa eğik kol), `packaging/make_logo.py` üretir (`--site` ile telefon sayfasının simgeleri de). Sabah açınca
+günün planı hazır olsun diye yapıldı. Repo klasörü `Desktop\erk`, GitHub deposu `erk_planlayici` (eski adı alpha_dashboard; GitHub eski adresi yönlendirir).
+Geliştiriciyle çalışma tarzı, tasarım zevki ve iş akışı kuralları **gamma (kamug) ile aynı**:
 `C:\Users\yigit\OneDrive\Desktop\gamma\CLAUDE.md` bölüm 2'yi oku (Türkçe yaz, makul varsayılanla ilerle,
 gri vurgu / AMOLED siyah, mor yok, YouTube görünümü, önce çalıştırıp doğrula, commit yalnızca istenince).
 
@@ -12,32 +15,48 @@ python main.py                    # kaynaktan
 python tests/smoke_test.py        # ~10 sn, örnek veriyle tüm sayfalar + formlar (gerçek veriye dokunmaz)
                                   # kurulum tests/smoke_base.py, adımlar tests/steps/*.py (sıra steps/__init__)
 python tests/smoke_test.py --shots <klasör>   # her sayfanın koyu/açık PNG'si
-python -m pyflakes alphaapp tests # temiz olmalı
-powershell -ExecutionPolicy Bypass -File packaging\build.ps1   # build\dist\alpha\alpha.exe (~1 dk)
+python -m pyflakes erk tests      # temiz olmalı
+powershell -ExecutionPolicy Bypass -File packaging\build.ps1   # build\dist\erk\erk.exe + build\installer\erk-setup-<sürüm>.exe
 ```
-Masaüstü kısayolu `build\dist\alpha\alpha.exe`'yi açar (pythonw ile görev çubuğu / Görev Yöneticisi "Python"
-gösteriyordu). Kullanıcıya görünen bir değişiklikten sonra exe'yi yeniden derle. Tek örnek kilidi (QLocalServer adı)
-veri klasörünün (DATA_DIR) crc32'sine bağlı: geçici ALPHA_DATA_DIR ile açılan test exe'si gerçek alpha'ya bağlanmaz.
-**Veri yerleri (2.0):** kayıtlar + hedef görselleri (images) + yedekler yerel `%USERPROFILE%\Documents\alpha`
-(OneDrive DIŞI — kullanıcı OneDrive istemedi; `ALPHA_DATA_DIR` ezer). Tercihler + error.log `%LOCALAPPDATA%\alpha`
-(APP_DIR). İlk açılışta eski yerden bir kez kopyalanır (config.migrate_old_data → _migrate_from; eskisi silinmez):
-önce OneDrive\Belgeler\alpha (data.json + backups + images), yoksa 1.x'in %LOCALAPPDATA%\alpha'sı.
-Kullanıcı kurulu sürümü (`%LOCALAPPDATA%\Programs\alpha\alpha.exe`, installer) çalıştırıyor.
+"sabah planı" adımı akşam (18:00 sonrası, akşam kapanışı daveti sabah davetini gizler) başarısız olur: saate bağlı,
+kodla ilgisi yok. Kullanıcı kurulu sürümü (`%LOCALAPPDATA%\Programs\erk\erk.exe`, installer) çalıştırıyor;
+kullanıcıya görünen bir değişiklikten sonra kurulumu yeniden derle (kullanıcı isteyince). Tek örnek kilidi
+(QLocalServer adı `erk-<crc32>`) veri klasörünün (DATA_DIR) crc32'sine bağlı: geçici ERK_DATA_DIR ile açılan test
+exe'si gerçek erk'e bağlanmaz. AppUserModelID `tamga.erk`.
+**Veri yerleri:** kayıtlar + hedef görselleri (images) + yedekler yerel `%USERPROFILE%\Documents\erk`
+(OneDrive DIŞI — kullanıcı OneDrive istemedi; `ERK_DATA_DIR`, yoksa eski ad `ALPHA_DATA_DIR` ezer). Tercihler +
+error.log + sesler `%LOCALAPPDATA%\erk` (APP_DIR).
+**alpha → erk taşıması (config.py, import anında, `_adopt_dir`):** `X\erk` varsa o kullanılır (boşsa silinip yerine
+geçilir); yoksa `X\alpha` → `X\erk` bir kez `os.rename` (Documents ve LOCALAPPDATA için ayrı ayrı). Eski alpha açıksa
+(`\\.\pipe\alpha-dashboard-<crc32(Documents\alpha)>` borusu var) ya da yeniden adlandırma olmazsa o oturum eski
+klasörle çalışır, sonraki açılışta yeniden denenir. Sıra KESİN: (1) Documents\erk, (2) Documents\alpha'yı yeniden
+adlandır, (3) ancak ikisi de yoksa (DATA_FILE yok) `migrate_old_data` eski kopyalardan bir kez kopyalar: önce
+OneDrive\Belgeler\alpha (2.0 önizlemesinin 16 Kasım kopyası; içinde `_alpha_key.php` de var), yoksa 1.x'in
+%LOCALAPPDATA%\alpha'sı (artık APP_DIR). data.json varken ASLA kopyalanmaz (smoke "veri taşıma" adımı sahte ev /
+OneDrive klasörleriyle kanıtlar). Tercihlerde ve kayıtlarda eski klasörün içini gösteren tam yollar (`backup_dir` vb.)
+`config.remap_path` ile yeni klasöre çevrilir (görseller zaten yalnızca dosya adıyla saklanır).
 Testte LOCALAPPDATA değiştirince `python` (py launcher) bozuluyor: tam yol
 `%LOCALAPPDATA%\Python\pythoncore-3.14-64\python.exe`'yi değişkeni değiştirmeden önce al.
 **Web (web.py):** telefondan bakmak için gündemin anlık görüntüsü (dün..+30 gün program, geciken/tarihsiz işler,
-yaklaşanlar) `https://yigitozsoy.net/api/alpha.php`'ye gider. Hedef / vision board / not / ekonomi kaydı ASLA
-gitmez (kullanıcı kesin istemedi; smoke testi denetler). Site çıplak alan adını www.'ya 301'ler (POST kaybolur):
-adres `https://www.yigitozsoy.net/api/alpha.php`; WebSync yönlendirmede adresi kendisi günceller. Anahtar prefs web_key, X-Alpha-Key başlığı; sunucuda yalnızca
-sha256'sı (`api/_alpha_key.php`). Sayfa: site klasöründe `alpha/index.html` (salt okunur, anahtar #k= ile bir kez gelir,
-localStorage'da önbellek). Site: `Desktop\yigitozsoy.net` (Apache + PHP, kullanıcı sunucuya elle yükler; yedek: gizli GitHub deposu yigitozsoy/yigitozsoy.net, archive/ ve api/_auth.php + _alpha_key.php hariç).
-Test `LOCALAPPDATA` **ve** `ALPHA_DATA_DIR`'ı geçici klasöre çevirir, offscreen çizer (`QT_QPA_FONTDIR` =
+yaklaşanlar) `https://www.yigitozsoy.net/api/alpha.php`'ye gider. Hedef / vision board / not / ekonomi kaydı ASLA
+gitmez (kullanıcı kesin istemedi; smoke testi denetler). Site çıplak alan adını www.'ya 301'ler (POST kaybolur);
+WebSync yönlendirmede adresi kendisi günceller. Anahtar prefs web_key, `X-Alpha-Key` başlığı; sunucuda yalnızca
+sha256'sı (`api/_alpha_key.php`). **Sunucu tarafı adları (api/alpha.php, X-Alpha-Key, _alpha_key.php, localStorage
+`alpha_*` anahtarları) eski adla KALIR**: sunucuyu kullanıcı elle günceller, değiştirme. Sayfa: sitede `alpha/index.html`
+(salt okunur, anahtar #k= ile bir kez gelir, localStorage'da önbellek); erk adlı kopyası repoda
+`erk-site-yukle/erk/` (index.html, logo.png, icon-192/512.png, manifest.webmanifest, .htaccess) — kullanıcı sitenin
+kökündeki `erk/` klasörüne yükleyecek. Yüklenince `web.PAGE_DIR = "erk"` yapılabilir (telefon bağlantısı o sayfayı
+açar; aynı alan adı olduğu için kayıtlı anahtar iki sayfada da geçerli). Masaüstündeki Bugün / Program değişirse
+index.html'i hem site klasöründe hem erk-site-yukle'de güncelle. Site: `Desktop\yigitozsoy.net` (Apache + PHP, kullanıcı
+sunucuya elle yükler; yedek: gizli GitHub deposu yigitozsoy/yigitozsoy.net, archive/ ve api/_auth.php + _alpha_key.php hariç).
+Test `LOCALAPPDATA` **ve** `ERK_DATA_DIR`'ı geçici klasöre çevirir, offscreen çizer (`QT_QPA_FONTDIR` =
 Windows\Fonts, yoksa yazılar kutu çıkar). Kendi betiklerinde ikisini de ayarla: yalnızca LOCALAPPDATA verirsen gerçek
-Belgeler\alpha'ya yazarsın.
+Belgeler\erk'e yazarsın (ve gerçek Belgeler\alpha'yı yeniden adlandırırsın). Sesler offscreen'de ya da `ERK_MUTE=1`
+iken çalmaz; `ERK_OFFLINE=1` ağa çıkmaz (eski ALPHA_* adları da okunur).
 
 ## Yapı
 ```
-alphaapp/
+erk/
   app.py          tek örnek (QLocalServer), dil/yerel ayar, excepthook (hata → APP_DIR\error.log)
   config.py       yollar, Prefs (preferences.json)
   store.py        tüm veriler tek JSON (data.json), 400 ms gecikmeli kayıt, günlük yedek (backups/, 14 gün; prefs
@@ -48,7 +67,7 @@ alphaapp/
   components/     paket, aynı düzen: base (Page görünür olunca yenilenir, Card, Row, button / sub_label /
                   clear_layout = layout boşaltmanın TEK yeri), stats, charts (ChipBar dahil), month_calendar, daygrid, flow
   theme.py        gamma paletleri + kart/rozet stilleri; sayı kutusu okları assets/spin_*.svg (theme.spin_img)
-  i18n.py         t() + biçimler; metinler alphaapp/locales/tr.json, en.json (spec datas'ta). Yeni anahtar iki dosyaya da
+  i18n.py         t() + biçimler; metinler erk/locales/tr.json, en.json (spec datas'ta). Yeni anahtar iki dosyaya da
   icons.py        Material yolları; kategori ikonları cat_education / cat_work / cat_sport takma adları (tek satırda değişir)
                   Bugün'deki ay takvimi: components.MonthCalendar + store.items_between(a, b)
   kareler         components.DayGrid (GitHub tarzı). span=(2, 1): son 2 ay + önümüzdeki 1 ay; kareler KARE, en
@@ -102,7 +121,7 @@ alphaapp/
                   sınava yazılır). Eğitim görevlerinin sağ tık menüsünde "Sınavlara taşı" (pages.task_to_exam).
   dialogs.py      Seçenekler: solda kategoriler (Genel, Bugün ve program, Hatırlatıcılar, Spor ve beslenme,
                   Masaüstü widget'ı, Telefonda aç, Veriler, Hakkında), sağda QStackedWidget. category()/section().
-  web sayfası     site klasöründe alpha/index.html masaüstü temasının (theme.py renkleri, Card/Row/Block,
+  web sayfası     site klasöründe alpha/index.html (erk kopyası erk-site-yukle/erk/) masaüstü temasının (theme.py renkleri, Card/Row/Block,
                   MonthCalendar) birebir HTML kopyası: yalnızca Bugün + Haftalık program. Metinler, ikon yolları,
                   hafta/ay adları anlık görüntüyle (web.build_snapshot v2: days[blocks, prog], tasks, deadlines, cal,
                   str, icons) gelir. Masaüstünde bu iki sayfa değişirse web.py + index.html'i de güncelle.
@@ -182,7 +201,7 @@ alphaapp/
                   piksel = 1 + kas×13 + gölge, boyama = renk tablosu, sürükle = döndür); paket yoksa Body3D
                   (elipsoidlerden basit model, CI'da bu). Paket packaging/make_body.py ile assets/muscle-body/anatomy.OBJ'den
                   üretilir (numpy + Pillow); model lisansı belirsiz → ikisi de .gitignore'da, depoya girmez.
-                  Referans: spor/ klasöründeki "Lightweight" ekran görüntüleri (yalnızca veri/fikir, görünüm alpha'nın).
+                  Referans: spor/ klasöründeki "Lightweight" ekran görüntüleri (yalnızca veri/fikir, görünüm erk'in).
   pages/          today, schedule, habits, education, work, sport, mind, social, finance, notes
   zihin           pages/mind.py: sleep (bed/wake, kalite), meditasyon (ClockPanel: kronometre / zamanlayıcı +
                   BreathPanel nefes), ders çalışma özeti; denge "mind" parçaları. Güne puan verme (ruh hali / enerji /
@@ -192,7 +211,7 @@ alphaapp/
                   kartında CourseClock. Adı "pomodoro" değil (kullanıcı istemedi): kronometre + zamanlayıcı.
   ekonomi         markets.py: Yahoo chart uç noktası (anahtarsız) + ECB yedeği, TL'ye çevrilir, prefs "prices"
                   önbelleği; yatırımda asset (kod / Yahoo sembolü) + qty → anlık değer (value_of, net_worth). Ekranda
-                  pages/assets.AssetsCard (5 dk'da bir, yalnızca görünürken; offscreen / ALPHA_OFFLINE=1 ağa çıkmaz).
+                  pages/assets.AssetsCard (5 dk'da bir, yalnızca görünürken; offscreen / ERK_OFFLINE=1 ağa çıkmaz).
                   Alınacaklar sekmesi = pages/wishlist.py ürün kartı vitrini (görsel: image ya da bağlantının og:image'i,
                   bir kez denenir → img_tried; kategori çipleri; Aldım) = wishlist koleksiyonu (Notion "Wishlist"ten içe alındı; Notion
                   adresi prefs notion_wishlist'te, koda yazılmaz). Ekonomi / alınacaklar telefona gitmez.
@@ -240,20 +259,20 @@ Koleksiyonlar `store.py` başındaki belge metninde. Kategori: education, work, 
 Yiğit "şunu yedim / antrenman yaptım / uyudum / görev ekle" derse data.json'a ELLE YAZMA, kodu okuma: şunu çalıştır
 (proje kökünden; uygulama açıksa istek ona gider, kapalıysa dosyaya güvenle yazılır):
 ```bash
-python -X utf8 -m alphaapp.cli help          # tüm komutlar (kısa)
-python -X utf8 -m alphaapp.cli day           # bugünün özeti (öğün toplamı / hedef, antrenman, uyku, görev, alışkanlık)
-python -X utf8 -m alphaapp.cli meal "pirinç:200" "tavuk göğsü:400" "protein tozu:2 ölçek"   # besin kütüphanesinden
-python -X utf8 -m alphaapp.cli food add "Mercimek (çiğ)" kcal=343 protein=24 carbs=60 fat=1.5 src=<kaynak>
-python -X utf8 -m alphaapp.cli add sleep date=dün bed=23:40 wake=07:10 quality=4
-python -X utf8 -m alphaapp.cli add tasks title="..." due=yarın category=education
-python -X utf8 -m alphaapp.cli list workouts --from -7 --fields date,kind,exercises
+python -X utf8 -m erk.cli help          # tüm komutlar (kısa)
+python -X utf8 -m erk.cli day           # bugünün özeti (öğün toplamı / hedef, antrenman, uyku, görev, alışkanlık)
+python -X utf8 -m erk.cli meal "pirinç:200" "tavuk göğsü:400" "protein tozu:2 ölçek"   # besin kütüphanesinden
+python -X utf8 -m erk.cli food add "Mercimek (çiğ)" kcal=343 protein=24 carbs=60 fat=1.5 src=<kaynak>
+python -X utf8 -m erk.cli add sleep date=dün bed=23:40 wake=07:10 quality=4
+python -X utf8 -m erk.cli add tasks title="..." due=yarın category=education
+python -X utf8 -m erk.cli list workouts --from -7 --fields date,kind,exercises
 ```
 Python tam yolu: `%LOCALAPPDATA%\Python\pythoncore-3.14-64\python.exe`. Koleksiyon alanları: `cli colls` (store.py belge
 metni). Besin yoksa `meal` hiçbir şey yazmaz ve "kütüphanede yok" der: değeri (100 g, çiğ/pişmiş belirt) diyetkolik gibi
 bir kaynaktan bul, `food add` ile ekle, sonra `meal`. Kullanıcı gramı çiğ ağırlıkla söyler ("200 g çiğ pirinç").
-Kod: alphaapp/cli.py (run = komutlar, handle_request = app.py sunucusu {"cli": argv}
+Kod: erk/cli.py (run = komutlar, handle_request = app.py sunucusu {"cli": argv}
  → {"code", "out"}),
-alphaapp/nutrition.py (find_food, parse_amount: birim tanımlı besinde 20'den küçük çıplak sayı = birim).
+erk/nutrition.py (find_food, parse_amount: birim tanımlı besinde 20'den küçük çıplak sayı = birim).
 Spor sayfasında "Besin kütüphanesi" kartı (sağ tık / ⋮ > Bugüne ekle…). Yeni komut eklersen smoke tests/steps/komut.py.
 
 ## Tuzaklar
@@ -270,12 +289,18 @@ Spor sayfasında "Besin kütüphanesi" kartı (sağ tık / ⋮ > Bugüne ekle…
 - Heredoc ile Python yaması yazarken `\n` gerçek satır sonuna dönüşüyor; çok satırlı değişiklikte Edit kullan.
 
 ## Sürüm ve yayın
-- Repo: https://github.com/yigitozsoy/alpha_dashboard (3.0'dan beri GİZLİ, açık kaynak değil; LICENSE = tüm hakları saklıdır). Sürüm tek yerde: `alphaapp/__init__.py`.
-- `packaging\build.ps1` → `build\installer\alpha-setup-<sürüm>.exe` + `alpha-portable-<sürüm>.zip` (Inno Setup 6).
-  alpha.spec DROP listesi paketi hafifletir (opengl32sw, Qt OpenSSL arka ucu + libssl/libcrypto-3-x64, tr/en dışı Qt
+- Repo: https://github.com/yigitozsoy/erk_planlayici (3.0'dan beri GİZLİ, açık kaynak değil; LICENSE = tüm hakları saklıdır). Sürüm tek yerde: `erk/__init__.py`.
+- `packaging\build.ps1` → `build\installer\erk-setup-<sürüm>.exe` + `erk-portable-<sürüm>.zip` (Inno Setup 6).
+  erk.spec DROP listesi paketi hafifletir (opengl32sw, Qt OpenSSL arka ucu + libssl/libcrypto-3-x64, tr/en dışı Qt
   çevirileri, kullanılmayan görüntü / platform eklentileri): kurulum ~23 MB. TLS için web.WebSync Schannel seçer.
   Sihirbaz gamma ile aynı: `WizardStyle=modern dynamic windows11 hidebevels` (Inno 6.7+), görseller
   make_meta.py'de logodan üretilir (build\wizard, Pillow gerekir; CI pip satırında var), lisans sayfası yok.
+- **Kurulum alpha'dan yükseltir:** AppId (`{F860D8FB-…}`) alpha ile aynı, DEĞİŞTİRME; `UsePreviousAppDir=no` /
+  `UsePreviousGroup=no` → `{autopf}\erk`. [Code]: eski klasör kaldırma kaydının `Inno Setup: App Path`'inden okunur,
+  açık alpha.exe kapatılır (taskkill, 3 sn sonra /F), kurulum bitince eski klasör silinir (adı alpha ise DelTree,
+  değilse yalnızca kurulumun dosyaları), Run'daki `alpha` değeri `erk`'e çevrilir; [InstallDelete] eski Başlat grubu
+  ve masaüstü `alpha.lnk`'i, [Registry] App Paths\alpha.exe / Applications\alpha.exe'yi siler. Veri klasörlerine
+  kurulum dokunmaz (erk ilk açılışta kendisi taşır).
 - Yeni sürüm: sürümü artır → commit → push → `git tag vX.Y.Z` → `git push origin vX.Y.Z`; GitHub Actions
   (`.github/workflows/build.yml`) testi koşup derler ve Releases'a ekler (CI'da body_frames.zip yok → Body3D;
   yerel derlemedeki kurulum sürüme --clobber ile yüklenir). Yayından önce onay al.

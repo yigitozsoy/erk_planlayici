@@ -10,7 +10,7 @@ def _shots(ctx):
     shots, win, app = ctx["shots"], ctx["win"], ctx["app"]
     if not shots:
         return
-    from alphaapp.theme import theme
+    from erk.theme import theme
     win.toast_w.hide()
     for th in ("amoled", "white"):
         theme.apply(th)
@@ -19,7 +19,7 @@ def _shots(ctx):
             _pump(app, 6)
             win.grab().save(os.path.join(shots, f"{th}_{key}.png"))
     theme.apply("amoled")
-    from alphaapp.forms import FormDialog
+    from erk.forms import FormDialog
     d = FormDialog(win, ctx["store"], "exams", ctx["store"].all("exams")[1])
     d.show()
     _pump(app, 6)

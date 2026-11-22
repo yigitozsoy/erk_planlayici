@@ -32,17 +32,17 @@ def main():
         import traceback
         slot_errors.append("".join(traceback.format_exception(tp, val, tb)))
     sys.excepthook = hook
-    from alphaapp.config import prefs, DATA_DIR, APP_DIR, PREFS_FILE
+    from erk.config import prefs, DATA_DIR, APP_DIR, PREFS_FILE
     assert DATA_DIR.startswith(_tmp) and APP_DIR.startswith(_tmp) and PREFS_FILE.startswith(_tmp), DATA_DIR
     prefs.set("name", "Test")
     prefs.set("day_end_hour", 0)   # örnek veri takvim gününe göre; gece 00-04 arası da aynı sonuç
     prefs.set("last_plan", date.today().isoformat())   # plan ekranı kendi adımında test edilir
-    from alphaapp.i18n import apply_locale
+    from erk.i18n import apply_locale
     apply_locale()
-    from alphaapp.theme import theme
+    from erk.theme import theme
     theme.apply("amoled")
-    from alphaapp.store import Store
-    from alphaapp.window import MainWindow
+    from erk.store import Store
+    from erk.window import MainWindow
     store = Store()
     seed(store)
     win = MainWindow(store)

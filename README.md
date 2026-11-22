@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="alphaapp/assets/logo.png" width="72" alt="alpha logosu">
+  <img src="erk/assets/logo.png" width="72" alt="erk logosu">
 </p>
 
-<h1 align="center">alpha</h1>
+<h1 align="center">erk</h1>
 
 <p align="center">
   Kişisel gösterge paneli — sabah açtığında günün planı hazır: program, yapılacaklar, yaklaşan deadline'lar,
@@ -10,20 +10,22 @@
 </p>
 
 <p align="center">
-  <img src="docs/today.png" alt="alpha — Bugün sayfası" width="860">
+  <img src="docs/today.png" alt="erk — Bugün sayfası" width="860">
 </p>
 
-alpha, [gamma](https://github.com/yigitozsoy/gamma_player) ailesinin üçüncü uygulamasıdır: aynı YouTube tarzı
-tasarım dili, AMOLED siyah / aydınlık tema, gri vurgu. Her şey bu bilgisayarda, tek bir dosyada durur; hesap,
+erk, **tamga** ailesinin uygulamalarından biridir (kamug = oynatıcı, yazıt = not / çizim tahtası, erk = gösterge
+paneli). Adı Göktürkçe "güç, iradesine hâkim olma" demek; logosu Göktürk alfabesindeki **e** harfi. Eski adı
+**alpha**'ydı: yeni kurulum alpha'nın üstüne kurulur, kayıtlar (`Belgeler\alpha` → `Belgeler\erk`) ilk açılışta
+kendiliğinden taşınır. Aynı YouTube tarzı tasarım dili, AMOLED siyah / aydınlık tema, gri vurgu. Her şey bu bilgisayarda, tek bir dosyada durur; hesap,
 bulut ya da internet gerekmez.
 
 ## İndir ve kur
 
 [**Releases**](../../releases) sayfasından:
 
-- **`alpha-setup-x.y.z.exe`** — kurulum sihirbazı. Başlat menüsü ve masaüstü kısayolu; yönetici izni istemez.
+- **`erk-setup-x.y.z.exe`** — kurulum sihirbazı. Başlat menüsü ve masaüstü kısayolu; yönetici izni istemez.
   Denetim Masası'ndan kaldırılabilir (verileriniz silinmez).
-- **`alpha-portable-x.y.z.zip`** — kurulumsuz; klasörü açıp `alpha.exe`'yi çalıştırın.
+- **`erk-portable-x.y.z.zip`** — kurulumsuz; klasörü açıp `erk.exe`'yi çalıştırın.
 
 Yalnızca Windows 10/11 64-bit desteklenir.
 
@@ -86,7 +88,7 @@ Günün ilk açılışında (öğleden önce) kendiliğinden gelir; Seçenekler'
 **Genel**
 - Karanlık (AMOLED) / aydınlık tema, Türkçe / İngilizce
 - Windows **Snap**, hızlı ekle (Ctrl+N), sayfalar arası Ctrl+1…9, her yerde geri al
-- Veriler `%LOCALAPPDATA%\alpha\data.json` içinde; her gün otomatik yedek (son 14 gün), JSON dışa aktarma
+- Veriler `Belgeler\erk\data.json` içinde (OneDrive dışında); her gün otomatik yedek (son 14 gün), JSON dışa aktarma
 
 <img src="docs/light.png" alt="Aydınlık tema" width="720">
 
@@ -111,7 +113,7 @@ Actions derleyip Releases'a ekler.
 
 ```
 main.py                    kaynaktan başlatıcı
-alphaapp/
+erk/
   app.py                   giriş, tek örnek, hata günlüğü
   window.py · titlebar.py  çerçevesiz pencere (Snap), sol menü, hızlı ekle
   store.py                 tüm veriler tek JSON, gecikmeli kayıt, günlük yedek, sorgular
@@ -124,9 +126,10 @@ alphaapp/
 tests/smoke_test.py        uçtan uca duman testi
 packaging/
   build.ps1                tek komutla derleme
-  alpha.spec               PyInstaller tanımı
+  erk.spec                 PyInstaller tanımı
   installer.iss            Inno Setup kurulum betiği
   make_meta.py             sürüm bilgisini üretir
+  make_logo.py             logo.png + logo.ico (Göktürk e harfi)
 ```
 
 ## Lisans

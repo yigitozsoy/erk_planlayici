@@ -12,9 +12,9 @@ from smoke_base import step, _pump, ROOT
 @step("sürüm 2: önemliler kırmızı kutu, ikonlu kategori, konum kapatma, alışkanlıklar programda")
 def _v2(ctx):
     win, app, store = ctx["win"], ctx["app"], ctx["store"]
-    from alphaapp.config import prefs
-    from alphaapp.forms import FormDialog, CategoryPicker
-    from alphaapp.pages.schedule import Block
+    from erk.config import prefs
+    from erk.forms import FormDialog, CategoryPicker
+    from erk.pages.schedule import Block
     td = date.today()
     # kategori ikonları: tek tıkla seçilir, değer kaydedilir
     d = FormDialog(win, store, "tasks")
@@ -89,8 +89,8 @@ def _v2(ctx):
 def _habit_rules(ctx):
     import json
     win, app, store = ctx["win"], ctx["app"], ctx["store"]
-    from alphaapp import habits_core as hc
-    from alphaapp.components import DayGrid
+    from erk import habits_core as hc
+    from erk.components import DayGrid
     td = date.today()
     D = lambda k: (td - timedelta(days=k))  # noqa: E731
     iso = lambda k: D(k).isoformat()  # noqa: E731
@@ -173,68 +173,172 @@ def _habit_rules(ctx):
     win.show_page("today")
     _pump(app)
     tp_ = win.pages["today"]
-    from alphaapp.components import Row as _Row
+    from erk.components import Row as _Row
     rows = [r for r in tp_.c_habits.findChildren(_Row) if r.title_lbl.text() == "Dene"]
     assert rows and tp_.c_habits.isVisible()
     rows[0]._toggle()
     _pump(app)
     assert (hc.state(store.get("habits", b["id"]), td) or 0) >= 1
     # web anlık görüntüsüne bırakma alışkanlığı gitmez
-    from alphaapp import web
+    from erk import web
     snap = json.dumps(web.build_snapshot(store), ensure_ascii=False)
     assert "NoFap" not in snap
 
 
-@step("veri taşıma: eski %LOCALAPPDATA%\\alpha\\data.json bir kez Belgeler\\alpha'ya kopyalanır")
+# Sahte Windows Belgeler (OneDrive) klasörü: config._documents_dir SHGetFolderPathW'yi çağırır; alt süreçte taklit edilir
+_FAKE_SHELL = """
+import ctypes, os
+class _Shell:
+    def SHGetFolderPathW(self, a, b, c, d, buf):
+        buf.value = os.environ["FAKE_ONEDRIVE_DOCS"]
+        return 0
+ctypes.windll.shell32 = _Shell()
+"""
+
+
+def _run_cfg(env, code):
+    import subprocess
+    out = subprocess.run([sys.executable, "-c", _FAKE_SHELL + code], cwd=ROOT, env=env, capture_output=True,
+                         text=True, encoding="utf-8")
+    assert out.returncode == 0, out.stderr
+    return out.stdout.strip()
+
+
+def _jw(path, title, **extra):
+    import json
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump({"tasks": [{"id": "x", "title": title}], **extra}, f)
+
+
+def _jt(path):
+    import json
+    with open(path, encoding="utf-8") as f:
+        return json.load(f)["tasks"][0]["title"]
+
+
+def _mig_env(base):
+    """Gerçek kullanıcı klasörleri yerine base altında sahte ev / LOCALAPPDATA / OneDrive (veri ortam değişkeni yok)."""
+    env = {k: v for k, v in os.environ.items() if k not in ("ERK_DATA_DIR", "ALPHA_DATA_DIR")}
+    env.update(USERPROFILE=os.path.join(base, "home"), LOCALAPPDATA=os.path.join(base, "local"),
+               FAKE_ONEDRIVE_DOCS=os.path.join(base, "onedrive", "Belgeler"), PYTHONIOENCODING="utf-8")
+    return env
+
+
+_MIG = "import erk.config as c; c.migrate_old_data(); print(c.DATA_DIR + '|' + c.APP_DIR)"
+
+
+@step("veri taşıma (alpha → erk): Documents\\alpha yeniden adlandırılır, OneDrive'daki eski kopya güncel veriyi EZMEZ")
 def _migrate(ctx):
     import json
-    import subprocess
-    base = tempfile.mkdtemp(prefix="alpha-mig-")
-    old = os.path.join(base, "local", "alpha")
-    os.makedirs(os.path.join(old, "backups"))
-    with open(os.path.join(old, "data.json"), "w", encoding="utf-8") as f:
-        json.dump({"tasks": [{"id": "x", "title": "eski"}]}, f)
-    open(os.path.join(old, "backups", "data-2026-01-01.json"), "w").close()
-    new = os.path.join(base, "docs", "alpha")
-    env = dict(os.environ, LOCALAPPDATA=os.path.join(base, "local"), ALPHA_DATA_DIR=new)
     import time
+    # 1) gerçek durum: Documents\alpha (güncel) + OneDrive\Belgeler\alpha (16 Kasım kopyası) + %LOCALAPPDATA%\alpha
+    base = tempfile.mkdtemp(prefix="erk-mig-")
+    env = _mig_env(base)
+    docs_a = os.path.join(base, "home", "Documents", "alpha")
+    docs_e = os.path.join(base, "home", "Documents", "erk")
+    one = os.path.join(base, "onedrive", "Belgeler", "alpha")
+    loc_a, loc_e = os.path.join(base, "local", "alpha"), os.path.join(base, "local", "erk")
+    _jw(os.path.join(one, "data.json"), "eski-onedrive")
+    os.makedirs(os.path.join(one, "images"))
+    open(os.path.join(one, "images", "eski.png"), "wb").close()
+    one_mtime = os.path.getmtime(os.path.join(one, "data.json"))
+    time.sleep(0.05)
+    _jw(os.path.join(docs_a, "data.json"), "guncel")
+    os.makedirs(os.path.join(docs_a, "images"))
+    open(os.path.join(docs_a, "images", "hedef.png"), "wb").close()
+    # 2.0 taşımasının işareti (yeni dosyaya o zamandan beri dokunuldu)
+    with open(os.path.join(docs_a, ".tasindi.json"), "w", encoding="utf-8") as f:
+        f.write('{"old_mtime": %f, "new_mtime": 1, "from": "x"}' % one_mtime)
+    os.makedirs(loc_a)
+    with open(os.path.join(loc_a, "preferences.json"), "w", encoding="utf-8") as f:
+        json.dump({"name": "Test", "backup_dir": os.path.join(docs_a, "usb"), "web_url": "https://x/api/alpha.php"}, f)
+    _jw(os.path.join(loc_a, "data.json"), "eski-1x")
+    os.makedirs(docs_e)                                   # boş Documents\erk (ör. elle açılmış) silinip yerine geçilir
+    out = _run_cfg(env, _MIG)
+    assert out == docs_e + "|" + loc_e, out
+    assert not os.path.exists(docs_a) and not os.path.exists(loc_a)
+    assert _jt(os.path.join(docs_e, "data.json")) == "guncel"          # 16 Kasım kopyası gelmedi
+    assert os.path.exists(os.path.join(docs_e, "images", "hedef.png"))
+    assert not os.path.exists(os.path.join(docs_e, "images", "eski.png"))
+    assert _jt(os.path.join(one, "data.json")) == "eski-onedrive"       # eski kopyaya dokunulmadı
+    assert not os.path.exists(os.path.join(one, "VERILER-TASINDI.txt"))
+    with open(os.path.join(loc_e, "preferences.json"), encoding="utf-8") as f:
+        p = json.load(f)
+    assert p["backup_dir"] == os.path.join(docs_e, "usb") and p["name"] == "Test", p
+    assert p["web_url"] == "https://x/api/alpha.php"
+    # ikinci açılış: hiçbir şey değişmez; sonradan eski alpha Documents\alpha'yı yeniden yaratsa da erk onu kullanmaz
+    _jw(os.path.join(docs_a, "data.json"), "eski-alpha-sonra")
+    out = _run_cfg(env, _MIG)
+    assert out.split("|")[0] == docs_e and _jt(os.path.join(docs_e, "data.json")) == "guncel"
+    assert _jt(os.path.join(docs_a, "data.json")) == "eski-alpha-sonra"
 
-    def run(code="import alphaapp.config as c; c.migrate_old_data()"):
-        out = subprocess.run([sys.executable, "-c", code], cwd=ROOT, env=env, capture_output=True, text=True)
-        assert out.returncode == 0, out.stderr
+    # 2) Documents\erk de Documents\alpha da yok → eski kopya (OneDrive\Belgeler\alpha) bir kez kopyalanır
+    base = tempfile.mkdtemp(prefix="erk-mig-")
+    env = _mig_env(base)
+    one = os.path.join(base, "onedrive", "Belgeler", "alpha")
+    _jw(os.path.join(one, "data.json"), "eski-onedrive")
+    os.makedirs(os.path.join(one, "images"))
+    open(os.path.join(one, "images", "eski.png"), "wb").close()
+    out = _run_cfg(env, _MIG)
+    docs_e = os.path.join(base, "home", "Documents", "erk")
+    assert out.split("|")[0] == docs_e
+    assert _jt(os.path.join(docs_e, "data.json")) == "eski-onedrive"
+    assert os.path.exists(os.path.join(docs_e, "images", "eski.png")) and os.path.exists(os.path.join(one, "data.json"))
+    # yeni dosya değiştikten sonra eski kopya bir daha asla üzerine yazmaz
+    _jw(os.path.join(docs_e, "data.json"), "yeni")
+    time.sleep(1.1)
+    _jw(os.path.join(one, "data.json"), "eski-onedrive-sonra")
+    _run_cfg(env, _MIG)
+    assert _jt(os.path.join(docs_e, "data.json")) == "yeni"
 
-    def title(path):
-        with open(path, encoding="utf-8") as f:
-            return json.load(f)["tasks"][0]["title"]
+    # 3) eski alpha açık (tek örnek borusu var) → yeniden adlandırma yok, bu oturum eski klasörlerle
+    base = tempfile.mkdtemp(prefix="erk-mig-")
+    env = _mig_env(base)
+    docs_a = os.path.join(base, "home", "Documents", "alpha")
+    _jw(os.path.join(docs_a, "data.json"), "guncel")
+    _jw(os.path.join(base, "onedrive", "Belgeler", "alpha", "data.json"), "eski-onedrive")
+    code = ("import os, zlib\nfrom multiprocessing.connection import Listener\n"
+            "n = 'alpha-dashboard-%08x' % zlib.crc32(os.path.normcase(os.path.join(os.environ['USERPROFILE'], "
+            "'Documents', 'alpha')).encode('utf-8'))\nL = Listener('\\\\\\\\.\\\\pipe\\\\' + n)\n" + _MIG.replace("; print", "\nL.close(); print"))
+    out = _run_cfg(env, code)
+    assert out.split("|")[0] == docs_a and out.split("|")[1] == os.path.join(base, "local", "erk"), out
+    assert _jt(os.path.join(docs_a, "data.json")) == "guncel"
+    assert not os.path.exists(os.path.join(base, "home", "Documents", "erk", "data.json"))
 
-    def write(path, text):
-        with open(path, "w", encoding="utf-8") as f:
-            json.dump({"tasks": [{"id": "x", "title": text}]}, f)
+    # 4) Documents\alpha'da açık (kilitli) dosya → yeniden adlandırılamaz, o oturum Documents\alpha ile; eski kopya gelmez
+    base = tempfile.mkdtemp(prefix="erk-mig-")
+    env = _mig_env(base)
+    docs_a = os.path.join(base, "home", "Documents", "alpha")
+    _jw(os.path.join(docs_a, "data.json"), "guncel")
+    _jw(os.path.join(base, "onedrive", "Belgeler", "alpha", "data.json"), "eski-onedrive")
+    with open(os.path.join(docs_a, "kilit.txt"), "w") as lock:
+        lock.write("x")
+        lock.flush()
+        out = _run_cfg(env, _MIG)
+    if out.split("|")[0] == docs_a:                     # Windows: açık dosyalı klasör taşınamaz
+        assert _jt(os.path.join(docs_a, "data.json")) == "guncel"
+    else:
+        assert _jt(os.path.join(out.split("|")[0], "data.json")) == "guncel", out
 
-    run("import alphaapp.config")                       # yalnızca içe aktarmak hiçbir şey kopyalamaz
-    assert not os.path.exists(os.path.join(new, "data.json"))
-    run()
-    assert title(os.path.join(new, "data.json")) == "eski"
-    # eski 1.x uygulaması açık kaldı ve yazmaya devam etti, yenisine dokunulmadı → yeniden kopyala
-    time.sleep(1.2)
-    write(os.path.join(old, "data.json"), "eski-sonra")
-    run()
-    assert title(os.path.join(new, "data.json")) == "eski-sonra"
-    # yeni sürümde değişiklik yapıldıysa eski dosya bir daha asla üzerine yazmaz
-    time.sleep(1.2)
-    write(os.path.join(new, "data.json"), "yeni")
-    time.sleep(1.2)
-    write(os.path.join(old, "data.json"), "eski-en-son")
-    run()
-    assert title(os.path.join(new, "data.json")) == "yeni"
-    assert os.path.exists(os.path.join(new, "backups", "data-2026-01-01.json"))
-    assert os.path.exists(os.path.join(old, "data.json"))   # eski kopya silinmez
+    # 5) eski ad ALPHA_DATA_DIR hâlâ okunur; ERK_DATA_DIR önceliklidir; 1.x %LOCALAPPDATA%\alpha yalnızca boşken
+    base = tempfile.mkdtemp(prefix="erk-mig-")
+    env = _mig_env(base)
+    _jw(os.path.join(base, "local", "alpha", "data.json"), "eski-1x")
+    env["ALPHA_DATA_DIR"] = os.path.join(base, "eski-ad")
+    out = _run_cfg(env, "import erk.config as c; print(c.DATA_DIR)")
+    assert out == os.path.join(base, "eski-ad") and not os.path.exists(os.path.join(out, "data.json"))  # import kopyalamaz
+    env["ERK_DATA_DIR"] = os.path.join(base, "yeni-ad")
+    out = _run_cfg(env, _MIG)
+    assert out.split("|")[0] == os.path.join(base, "yeni-ad")
+    assert _jt(os.path.join(base, "yeni-ad", "data.json")) == "eski-1x"
+    assert os.path.exists(os.path.join(base, "local", "erk", "data.json"))   # 1.x dosyası silinmedi (yeni adla)
 
 
 @step("sabah planı 2: 1-5 tuşları, dünün özeti, ilerleme, zaman şeridi + boşluğa iş koyma")
 def _plan2(ctx):
     win, app, store = ctx["win"], ctx["app"], ctx["store"]
-    from alphaapp.timeline import find_gaps
+    from erk.timeline import find_gaps
     assert find_gaps([(540, 600), (580, 660), (720, 780)], 480, 840) == [(480, 540), (660, 720), (780, 840)]
     assert find_gaps([(500, 520)], 480, 540) == []          # 30 dk altı boşluk yok
     td = date.today()
@@ -269,7 +373,7 @@ def _plan2(ctx):
     page.refresh()
     if tl.gaps:
         g = tl.gaps[0]
-        from alphaapp.timeline import hhmm
+        from erk.timeline import hhmm
         store.update("tasks", c["id"], time=hhmm(g[0]))
         _pump(app)
         page.refresh()
@@ -280,7 +384,7 @@ def _plan2(ctx):
     for x in (a, b, c):
         store.delete("tasks", x["id"])
     prefs_today = date.today().isoformat()
-    from alphaapp.config import prefs
+    from erk.config import prefs
     prefs.set("last_plan", prefs_today)
     win.show_page("today")
     _pump(app)
@@ -291,7 +395,7 @@ def _range_reload(ctx):
     import json
     import time
     store, app = ctx["store"], ctx["app"]
-    from alphaapp.forms import FormDialog
+    from erk.forms import FormDialog
     td = date.today()
     wd = td.weekday()
     r = store.add("routine", {"title": "Dönemlik ders", "category": "education", "days": [wd], "start": "07:00",
@@ -329,7 +433,7 @@ def _dnd(ctx):
     win, app, store = ctx["win"], ctx["app"], ctx["store"]
     from PyQt6.QtCore import QMimeData, QPointF, Qt
     from PyQt6.QtGui import QDropEvent, QDragEnterEvent
-    from alphaapp.pages.schedule import MIME, Block
+    from erk.pages.schedule import MIME, Block
     page = win.pages["schedule"]
     win.show_page("schedule")
     page._shift(0, reset=True)
@@ -381,7 +485,7 @@ def _day_menu(ctx):
     win, app, store = ctx["win"], ctx["app"], ctx["store"]
     from PyQt6.QtCore import QPoint
     from PyQt6.QtGui import QContextMenuEvent
-    from alphaapp.forms import FormDialog
+    from erk.forms import FormDialog
     page = win.pages["schedule"]
     win.show_page("schedule")
     _pump(app)
@@ -420,9 +524,9 @@ def _reminders(ctx):
     import wave
     from datetime import datetime
     win, app, store = ctx["win"], ctx["app"], ctx["store"]
-    from alphaapp.config import prefs
-    from alphaapp import sounds
-    from alphaapp.reminders import upcoming, ReminderPopup
+    from erk.config import prefs
+    from erk import sounds
+    from erk.reminders import upcoming, ReminderPopup
     rm = win.reminders
     td = date.today()
     prefs.set("reminder_lead", 10)
@@ -477,7 +581,7 @@ def _reminders(ctx):
 @step("gün bitişi: gece 02:00 hâlâ dünkü gün sayılır (done_at → mantıksal gün)")
 def _day_end(ctx):
     from datetime import datetime
-    from alphaapp.config import prefs, day_of, day_today
+    from erk.config import prefs, day_of, day_today
     prefs.set("day_end_hour", 4)
     assert str(day_of("2026-11-14T02:30:00")) == "2026-11-13"
     assert str(day_of("2026-11-14T04:00:00")) == "2026-11-14"

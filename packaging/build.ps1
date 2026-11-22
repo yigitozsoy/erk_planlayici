@@ -1,8 +1,8 @@
 ﻿<#
-alpha — derleme betiği
+erk — derleme betiği (tamga ailesi; eski adı alpha)
   1) Bağımlılıkları kurar (isteğe bağlı)
-  2) Sürüm bilgisini üretir (alphaapp/__init__.py → __version__)
-  3) PyInstaller ile build\dist\alpha\alpha.exe
+  2) Sürüm bilgisini üretir (erk/__init__.py → __version__)
+  3) PyInstaller ile build\dist\erk\erk.exe
   4) Taşınabilir zip ve Inno Setup ile kurulum dosyası (build\installer)
 
 Kullanım (proje kökünden):
@@ -26,11 +26,11 @@ if ($InstallDeps) {
     if ($LASTEXITCODE -ne 0) { throw "pip install başarısız" }
 }
 
-# açık alpha.exe dosyaları kilitler; derlemeden önce düzgünce kapat (veriler kaydedilsin), olmazsa dur
-$running = @(Get-Process alpha -ErrorAction SilentlyContinue | Where-Object { $_.Path -like "$Root\build\dist\*" })
+# açık erk.exe (ya da eski adla derlenmiş alpha.exe) dosyaları kilitler; derlemeden önce düzgünce kapat (veriler kaydedilsin), olmazsa dur
+$running = @(Get-Process erk, alpha -ErrorAction SilentlyContinue | Where-Object { $_.Path -like "$Root\build\dist\*" })
 foreach ($p in $running) { & taskkill.exe /PID $p.Id | Out-Null }
 foreach ($p in $running) {
-    if (-not $p.WaitForExit(8000)) { throw "alpha hâlâ açık; kapatıp tekrar deneyin" }
+    if (-not $p.WaitForExit(8000)) { throw "erk hâlâ açık; kapatıp tekrar deneyin" }
 }
 
 Step "Sürüm bilgisi üretiliyor"
@@ -40,15 +40,15 @@ Write-Host "Sürüm: $Version"
 
 Step "PyInstaller"
 $Dist = Join-Path $Root "build\dist"
-& $Python -m PyInstaller packaging\alpha.spec --noconfirm --clean --distpath $Dist --workpath (Join-Path $Root "build\work")
+& $Python -m PyInstaller packaging\erk.spec --noconfirm --clean --distpath $Dist --workpath (Join-Path $Root "build\work")
 if ($LASTEXITCODE -ne 0) { throw "PyInstaller başarısız" }
-$App = Join-Path $Dist "alpha"
+$App = Join-Path $Dist "erk"
 Copy-Item LICENSE (Join-Path $App "LICENSE.txt") -Force
 
 Step "Taşınabilir zip"
 $Out = Join-Path $Root "build\installer"
 New-Item -ItemType Directory -Force $Out | Out-Null
-$Zip = Join-Path $Out "alpha-portable-$Version.zip"
+$Zip = Join-Path $Out "erk-portable-$Version.zip"
 if (Test-Path $Zip) { Remove-Item $Zip }
 Compress-Archive -Path $App -DestinationPath $Zip -CompressionLevel Optimal
 Write-Host $Zip

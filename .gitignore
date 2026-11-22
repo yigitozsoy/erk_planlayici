@@ -32,7 +32,7 @@ preferences.json
 
 # 3B vücut modeli (lisansı belirsiz, yalnızca yerelde): kaynak model + ondan üretilen kare paketi
 muscle-body/
-alphaapp/assets/body_frames.zip
+erk/assets/body_frames.zip
 # referans ekran görüntüleri
 spor/
 

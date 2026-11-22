@@ -8,8 +8,8 @@ from smoke_base import step, _pump
 @step("bütçe: kategori grupları, tavan / uyarı / hız çizgisi, abonelikler kartı")
 def _budget(ctx):
     win, app, store, shots = ctx["win"], ctx["app"], ctx["store"], ctx["shots"]
-    from alphaapp import budget
-    from alphaapp.forms.schemas import schema
+    from erk import budget
+    from erk.forms.schemas import schema
     td = date.today()
     assert budget.group_of("Akaryakıt") == "transport" and budget.group_of("benzin") == "transport"
     assert budget.group_of("Yemek") == "food" and budget.group_of("bilinmeyen") == "other"
@@ -46,9 +46,9 @@ def _budget(ctx):
 @step("akşam kapanışı: davet saati, kalanlar yarına / tarihsiz + geri al, yarının odağı, not → sabah planı")
 def _shutdown(ctx):
     win, app, store, shots = ctx["win"], ctx["app"], ctx["store"], ctx["shots"]
-    from alphaapp.config import prefs
-    from alphaapp.config import day_today
-    from alphaapp.pages import shutdown
+    from erk.config import prefs
+    from erk.config import day_today
+    from erk.pages import shutdown
     td = day_today()
     D = lambda k: (td + timedelta(days=k)).isoformat()  # noqa: E731
     prefs.set("last_shutdown", None)

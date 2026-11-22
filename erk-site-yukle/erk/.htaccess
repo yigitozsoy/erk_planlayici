@@ -1,0 +1,7 @@
+# erk (eski adı alpha): kişisel gündem sayfası — arama motorlarına kapalı, önbelleğe alınmaz
+<IfModule mod_headers.c>
+  Header set X-Robots-Tag "noindex, nofollow"
+  Header set Cache-Control "no-cache"
+  Header set Referrer-Policy "no-referrer"
+</IfModule>
+AddType application/manifest+json .webmanifest

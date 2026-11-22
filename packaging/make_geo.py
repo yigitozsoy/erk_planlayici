@@ -1,4 +1,4 @@
-"""Kütüphane > Harita için alphaapp/assets/geo.json.gz üretir (Natural Earth, kamu malı).
+"""Kütüphane > Harita için erk/assets/geo.json.gz üretir (Natural Earth, kamu malı).
 
 Kullanım: python packaging/make_geo.py <natural-earth geojson klasörü>
 Gerekenler (github.com/nvkelso/natural-earth-vector/geojson):
@@ -112,7 +112,7 @@ def main(src):
             cities.append([nm, iso, names.get(iso) or p.get("adm0name"), round(float(p["longitude"]), 3),
                            round(float(p["latitude"]), 3), pop])
     cities.sort(key=lambda c: -c[5])
-    out = os.path.join(os.path.dirname(__file__), "..", "alphaapp", "assets", "geo.json.gz")
+    out = os.path.join(os.path.dirname(__file__), "..", "erk", "assets", "geo.json.gz")
     data = json.dumps({"world": world, "tr": tr, "cities": cities}, ensure_ascii=False, separators=(",", ":"))
     with gzip.open(out, "wt", encoding="utf-8") as fh:
         fh.write(data)

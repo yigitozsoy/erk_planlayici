@@ -10,9 +10,9 @@ from smoke_base import step, _pump, ROOT
 
 @step("i18n: koddaki tüm anahtarlar tanımlı")
 def _i18n(ctx):
-    from alphaapp.i18n import S
+    from erk.i18n import S
     missing = set()
-    for f in glob.glob(os.path.join(ROOT, "alphaapp", "**", "*.py"), recursive=True):
+    for f in glob.glob(os.path.join(ROOT, "erk", "**", "*.py"), recursive=True):
         s = open(f, encoding="utf-8").read()
         for k in re.findall(r'\bt\(\s*"([a-z0-9_]+)"\s*[,)]', s):
             if k not in S and k != "anahtar":   # i18n.py belge metnindeki örnek
@@ -20,9 +20,9 @@ def _i18n(ctx):
         for k in re.findall(r'"((?:f|qa)_[a-z_]+)"', s):
             if k not in S:
                 missing.add(k)
-    from alphaapp.store import CATEGORIES, COLLECTIONS
-    from alphaapp.forms import TASK_PRIORITIES, PROJECT_STATUS
-    from alphaapp.navmenu import BUILTIN
+    from erk.store import CATEGORIES, COLLECTIONS
+    from erk.forms import TASK_PRIORITIES, PROJECT_STATUS
+    from erk.navmenu import BUILTIN
     missing |= {v[1] for v in BUILTIN.values()} - set(S)
     for c in CATEGORIES:
         missing |= {"cat_" + c} - set(S)
@@ -30,7 +30,7 @@ def _i18n(ctx):
         missing |= {"prio_" + p} - set(S)
     for p in PROJECT_STATUS:
         missing |= {"status_" + p} - set(S)
-    from alphaapp.pages.plan import STEPS as PSTEPS, CHOICES
+    from erk.pages.plan import STEPS as PSTEPS, CHOICES
     for k in PSTEPS:
         missing |= {"plan_step_" + k, "plan_lead_" + k} - set(S)
     for k in CHOICES:
@@ -54,7 +54,7 @@ def _pages(ctx):
 @step("Bugün: program, yapılacaklar, yaklaşanlar dolu")
 def _today(ctx):
     win, app = ctx["win"], ctx["app"]
-    from alphaapp.components import Row
+    from erk.components import Row
     win.show_page("today")
     _pump(app)
     p = win.pages["today"]
@@ -67,8 +67,8 @@ def _today(ctx):
 @step("web: anlık görüntü yalnızca gündem (hedef / not / ekonomi yok), kapalıyken gönderilmez")
 def _web(ctx):
     import json
-    from alphaapp import web
-    from alphaapp.config import day_today
+    from erk import web
+    from erk.config import day_today
     store = ctx["store"]
     g = store.add("goals", {"title": "GIZLI_HEDEF_XYZ", "image": "gizli.png"})
     snap = web.build_snapshot(store)
@@ -87,11 +87,11 @@ def _web(ctx):
 
 @step("görev formu: Eğitim → sınav / teslim satırı, kaydedince Sınavlar'a gider (ders + tür tahmini)")
 def _task_as_exam(ctx):
-    from alphaapp.forms import FormDialog, guess_exam
+    from erk.forms import FormDialog, guess_exam
     store, win = ctx["store"], ctx["win"]
     c = store.all("courses")[0]
     assert guess_exam(store, f"{c['name']}: Midterm 2 (D220)") == (c["id"], "Vize 2")
-    from alphaapp import grades as _gr
+    from erk import grades as _gr
     assert _gr.exam_canon("midterm 1") == "Vize 1" and _gr.exam_canon("Lab") == "Laboratuvar"
     assert _gr.exam_label("Vize 2", False) == "Midterm 2" and _gr.exam_canon("Kendi sınavım") == "Kendi sınavım"
     assert _gr.exam_order("Final") > _gr.exam_order("Vize 2") > _gr.exam_order("Vize 1")
@@ -120,7 +120,7 @@ def _task_as_exam(ctx):
 @step("görev tamamla + geri al")
 def _task_done(ctx):
     store, win, app = ctx["store"], ctx["win"], ctx["app"]
-    from alphaapp.pages import toggle_task
+    from erk.pages import toggle_task
     tk = [x for x in store.all("tasks") if x["title"] == "Kirayı öde"][0]
     toggle_task(win, tk, True)
     assert store.get("tasks", tk["id"])["done"]
@@ -151,8 +151,8 @@ def _course_avg(ctx):
 @step("tüm formlar açılıyor, değer okuyor, kaydediyor")
 def _forms(ctx):
     store, win = ctx["store"], ctx["win"]
-    from alphaapp.forms import FormDialog
-    from alphaapp.store import COLLECTIONS
+    from erk.forms import FormDialog
+    from erk.store import COLLECTIONS
     for coll in COLLECTIONS:
         if coll in ("notes", "days", "wheel"):
             continue
@@ -173,7 +173,7 @@ def _forms(ctx):
 
 @step("form: sayı ayrıştırma (1.250,50 → 1250.5)")
 def _num(ctx):
-    from alphaapp.forms import _parse_num
+    from erk.forms import _parse_num
     assert _parse_num("1.250,50") == 1250.5
     assert _parse_num("12,5") == 12.5
     assert _parse_num("12.5") == 12.5
@@ -183,7 +183,7 @@ def _num(ctx):
 
 @step("biçimler: para, tarih")
 def _fmt(ctx):
-    from alphaapp.i18n import fmt_money, fmt_day, due_badge
+    from erk.i18n import fmt_money, fmt_day, due_badge
     assert fmt_money(1250.5) == "1.250,50 ₺", fmt_money(1250.5)
     assert fmt_money(1000) == "1.000 ₺", fmt_money(1000)
     assert fmt_money(-20, sign=True) == "−20 ₺"
@@ -213,7 +213,7 @@ def _notes(ctx):
 @step("veri dosyaya yazılıyor ve geri okunuyor")
 def _persist(ctx):
     store = ctx["store"]
-    from alphaapp.store import Store
+    from erk.store import Store
     store.flush()
     s2 = Store()
     for c in ("tasks", "courses", "transactions", "notes"):
@@ -222,7 +222,7 @@ def _persist(ctx):
 
 @step("tema değişimi (aydınlık ↔ karanlık)")
 def _theme(ctx):
-    from alphaapp.theme import theme
+    from erk.theme import theme
     theme.apply("white")
     _pump(ctx["app"])
     theme.apply("amoled")

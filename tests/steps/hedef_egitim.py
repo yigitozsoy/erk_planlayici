@@ -10,8 +10,8 @@ from smoke_base import step, _pump, _tmp
 def _finance_goal(ctx):
     import json
     win, app, store = ctx["win"], ctx["app"], ctx["store"]
-    from alphaapp.config import prefs, day_today
-    from alphaapp.components import Row
+    from erk.config import prefs, day_today
+    from erk.components import Row
     td = day_today()
     goal = date(td.year + 1, 1, 1)
     prefs.set("debt_free_goal", goal.isoformat())
@@ -58,8 +58,8 @@ def _finance_goal(ctx):
 
 @step("spora ara: hedef orantılı düşer, ara haftası seriyi bozmaz, arayı bitir")
 def _sport_break(ctx):
-    from alphaapp.config import prefs, day_today
-    from alphaapp.store import week_start
+    from erk.config import prefs, day_today
+    from erk.store import week_start
     win, app, store = ctx["win"], ctx["app"], ctx["store"]
     td = day_today()
     ws = week_start(td)
@@ -109,10 +109,10 @@ def _goals(ctx):
     win, app, store, shots = ctx["win"], ctx["app"], ctx["store"], ctx["shots"]
     from PyQt6.QtCore import QMimeData
     from PyQt6.QtGui import QImage, QPainter, QLinearGradient, QColor, QGuiApplication
-    from alphaapp.config import IMAGES_DIR
-    from alphaapp.forms import FormDialog
-    from alphaapp.pages.goals import image_from_mime
-    from alphaapp.store import LIFE_AREAS, life_area, life_scores
+    from erk.config import IMAGES_DIR
+    from erk.forms import FormDialog
+    from erk.pages.goals import image_from_mime
+    from erk.store import LIFE_AREAS, life_area, life_scores
     page = win.pages["goals"]
     win.show_page("goals")
     _pump(app)
@@ -167,7 +167,7 @@ def _goals(ctx):
     store.update("goals", targets[3]["id"], image=image_from_mime(md))
     # boşa bırakılan görsel: yeni hedef formu görselle açılır
     opened = []
-    import alphaapp.pages.goals as gm
+    import erk.pages.goals as gm
     orig = gm.edit_item
     gm.edit_item = lambda w, coll, item=None, preset=None: opened.append(preset)
     page._image_in(None, "x.png")
@@ -197,7 +197,7 @@ def _goals(ctx):
     linked = [g for g in edu if g["links"] == [f"courses:{c1['id']}"]][0]
     assert store.goal_activity(linked)[0] > 0
     # denge: puanlar verilerden (elle puan yok)
-    from alphaapp.balance import area_report, history, month_ends
+    from erk.balance import area_report, history, month_ends
     page.tabs.select("wheel")
     _pump(app, 4)
     assert page.wheel_row.isVisible() and not page.board_host.isVisible()
@@ -212,7 +212,7 @@ def _goals(ctx):
     ends = month_ends(td)
     assert ends[-1] == td and all(ends[i] < ends[i + 1] for i in range(5))
     # bilinen veri: 30 günde haftalık hedef kadar spor → spor parçası tam
-    from alphaapp.config import prefs
+    from erk.config import prefs
     prefs.set("sport_weekly_goal", 2)
     extra = [store.add("workouts", {"date": (td - timedelta(days=k)).isoformat(), "kind": "Koşu"})
              for k in range(0, 30, 3)]
@@ -313,7 +313,7 @@ def _mini_xlsx(path, rows):
 
 @step("not ortalaması: harf → not, ANO / AGNO (Excel ile aynı), tekrar alınan ders, Excel'den al, dönemi bitir")
 def _grades(ctx):
-    from alphaapp import grades
+    from erk import grades
     store, win, app = ctx["store"], ctx["win"], ctx["app"]
     assert grades.point("bb") == 3.0 and grades.point("XX") is None and grades.point("NA") == 0.0
     assert grades.point("") is None and grades.point(2.5) == 2.5
@@ -356,12 +356,12 @@ def _grades(ctx):
     page = win.pages["education"]
     page.tabs.btns["grades"].click()        # not çubukları Notlar sekmesinde
     _pump(app)
-    from alphaapp.pages.grades_view import _Combo
+    from erk.pages.grades_view import _Combo
     combos = page.c_grades.findChildren(_Combo)
     assert len(combos) == 2 * len(store.all("courses")), len(combos)
     # sınav çubuğu: sınavı olan her derste bir ExamBar; kalem = sınav çipleri (düzenleme kipi)
     from PyQt6.QtWidgets import QPushButton
-    from alphaapp.pages.grades_view import ExamBar
+    from erk.pages.grades_view import ExamBar
     ids = {x["id"] for x in store.all("courses")}
     n_ex = len([e for e in store.all("exams") if e.get("course") in ids])
     with_ex = {e.get("course") for e in store.all("exams") if e.get("course") in ids}
@@ -383,9 +383,9 @@ def _grades(ctx):
     _pump(app, 4)
     combos = page.c_grades.findChildren(_Combo)
     # kısa ad, sabit hedef kutusu, aynı ders + türde sınav birleşir
-    from alphaapp.pages.grades_view import _short
+    from erk.pages.grades_view import _short
     assert _short("Vize 1") == "V1" and _short("Laboratuvar") == "L" and _short("Ödev") == "Ö"
-    from alphaapp.config import prefs as _pf
+    from erk.config import prefs as _pf
     _pf.set("agno_goal", 3.0)
     page.c_grades.refresh()
     _pump(app, 2)
@@ -409,7 +409,7 @@ def _grades(ctx):
                for x in store.all("courses"))
     page.c_transcript._toggle("1.1")
     _pump(app, 4)
-    from alphaapp.pages.grades_view import _TermTile
+    from erk.pages.grades_view import _TermTile
     tiles = page.c_transcript.findChildren(_TermTile)
     assert tiles and sum(1 for x in tiles if x.property("open")) == 1          # sınıf × dönem ızgarası
     # dönemi bitir: gerçek harf transkripte yazılır, tekrar alınan ders güncellenir, geri al
@@ -426,10 +426,10 @@ def _grades(ctx):
 @step("sınav sırası: ders kartı = not çubuğu (Quiz 1/2 finalden önce); not alanına NA → 0")
 def _exam_order(ctx):
     win, app, store = ctx["win"], ctx["app"], ctx["store"]
-    from alphaapp import grades
-    from alphaapp.forms import _parse_num
-    from alphaapp.pages.grades_view import course_exams
-    from alphaapp.components import Row
+    from erk import grades
+    from erk.forms import _parse_num
+    from erk.pages.grades_view import course_exams
+    from erk.components import Row
     assert grades.exam_order("Quiz 2") == grades.exam_order("Quiz") < grades.exam_order("Final")
     assert grades.exam_order("Bilinmeyen") < grades.exam_order("Final")
     assert grades.exam_canon("Quiz 2") == "Quiz 2"            # kayıttaki ad değişmez
@@ -458,9 +458,9 @@ def _exam_order(ctx):
 @step("Eğitim sekmeleri: ev / Dersler / Notlar; sınav çalışma kareleri (konu satırları, tıkla = doldur / uzat)")
 def _edu_tabs(ctx):
     win, app, store = ctx["win"], ctx["app"], ctx["store"]
-    from alphaapp.components import Row
-    from alphaapp.config import day_today
-    from alphaapp.pages.edu_study import ExamStudy, cols_for, wants_blocks, rows_of, goal_of, done_of
+    from erk.components import Row
+    from erk.config import day_today
+    from erk.pages.edu_study import ExamStudy, cols_for, wants_blocks, rows_of, goal_of, done_of
     td = day_today()
     assert cols_for(12) == 4 and cols_for(20) == 5 and cols_for(3) == 3
     c = store.add("courses", {"name": "Kare Dersi", "credits": 5, "target": "BA"})
@@ -530,7 +530,7 @@ def _edu_tabs(ctx):
         _pump(app, 6)
         win.grab().save(os.path.join(ctx["shots"], "edu_courses.png"))
     # yaklaşan sınavlar (ev): haftalara bölünmüş, geçmiş yok, tarihsizler sonda; ders ikonları
-    from alphaapp.pages.education import course_icon
+    from erk.pages.education import course_icon
     assert course_icon("Akışkanlar Mekaniği I") == "course_fire" and course_icon("Fizik I") == "course_science"
     assert course_icon("Kalite Kontrol") == "course_gear" and course_icon("Edebiyat") == "cat_education"
     assert "calendar" not in page.tabs.btns
@@ -556,10 +556,10 @@ def _edu_tabs(ctx):
 
 @step("menüyü düzenle: kategori ekle / adlandır / gizle, sayfası açılır, formda seçilir, silince Kişisel'e geçer")
 def _navmenu(ctx):
-    from alphaapp import navmenu
-    from alphaapp.config import prefs
-    from alphaapp.i18n import t
-    from alphaapp.forms import CategoryPicker
+    from erk import navmenu
+    from erk.config import prefs
+    from erk.i18n import t
+    from erk.forms import CategoryPicker
     store, win, app = ctx["store"], ctx["win"], ctx["app"]
     assert navmenu.visible()[:2] == ["today", "schedule"] and "personal" not in navmenu.visible()
     ed = navmenu.NavEditor(win)
@@ -605,8 +605,8 @@ def _navmenu(ctx):
 @step("projeler: logo karo, görev atama, ilerleme görevlerden, zaman çizelgesi, karta sürükle, İş / Eğitim ayrımı")
 def _projects(ctx):
     store, win, app = ctx["store"], ctx["win"], ctx["app"]
-    from alphaapp.pages.projects import logo_pixmap, sorted_projects
-    from alphaapp.pages import task_row
+    from erk.pages.projects import logo_pixmap, sorted_projects
+    from erk.pages import task_row
     p = store.add("projects", {"name": "BEDROCK", "category": "education", "status": "doing", "start":
                                date.today().isoformat(), "due": (date.today() + timedelta(days=40)).isoformat()})
     assert not logo_pixmap(p, 40).isNull()
@@ -615,7 +615,7 @@ def _projects(ctx):
     store.add("tasks", {"title": "Sunum", "category": "education", "project": p["id"], "done": True})
     assert store.project_task_counts(p["id"]) == (1, 2) and store.project_progress(p) == 50.0
     assert p in sorted_projects(store, "education") and p not in sorted_projects(store, "work")
-    from alphaapp.forms import FormDialog
+    from erk.forms import FormDialog
     d = FormDialog(win, store, "tasks", preset={"project": p["id"]})
     assert d.fields["project"][1].currentData() == p["id"]
     d.deleteLater()
@@ -641,7 +641,7 @@ def _projects(ctx):
 @step("sürükle-bırak: ders görevi sınavlara / ders kartına bırakılınca sınav olur, geri al")
 def _drag_exam(ctx):
     store, win, app = ctx["store"], ctx["win"], ctx["app"]
-    from alphaapp.pages import drop_task_to_exam
+    from erk.pages import drop_task_to_exam
     c = store.all("courses")[0]
     tk = store.add("tasks", {"title": f"{c['name']}: Final", "category": "education", "done": False,
                              "due": date.today().isoformat()})

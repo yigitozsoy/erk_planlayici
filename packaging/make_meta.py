@@ -9,7 +9,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 sys.path.insert(0, ROOT)
 
-from alphaapp import __version__, __author__  # noqa: E402
+from erk import __version__, __author__  # noqa: E402
 
 parts = [int(p) for p in __version__.split(".")[:3]]
 ver4 = tuple((parts + [0, 0, 0, 0])[:4])
@@ -22,19 +22,19 @@ VSVersionInfo(
   kids=[
     StringFileInfo([StringTable('041F04B0', [
       StringStruct('CompanyName', '{__author__}'),
-      StringStruct('FileDescription', 'alpha'),
+      StringStruct('FileDescription', 'erk'),
       StringStruct('FileVersion', '{ver_str}'),
-      StringStruct('InternalName', 'alpha'),
+      StringStruct('InternalName', 'erk'),
       StringStruct('LegalCopyright', '© {__author__} — Tüm hakları saklıdır'),
-      StringStruct('OriginalFilename', 'alpha.exe'),
-      StringStruct('ProductName', 'alpha'),
+      StringStruct('OriginalFilename', 'erk.exe'),
+      StringStruct('ProductName', 'erk'),
       StringStruct('ProductVersion', '{__version__}')])]),
     VarFileInfo([VarStruct('Translation', [1055, 1200])])
   ]
 )
 """
 
-# Kurulum sihirbazı görselleri (Inno Setup, %100 - %200 DPI), gamma ile aynı düzen. Logo beyaz A; açık temada koyu boyanır.
+# Kurulum sihirbazı görselleri (Inno Setup, %100 - %200 DPI), gamma ile aynı düzen. Logo beyaz Göktürk e harfi; açık temada koyu boyanır.
 WIZ_SCALES = (100, 125, 150, 175, 200)
 
 
@@ -43,7 +43,7 @@ def make_wizard_images():
     from PIL import Image
     out = os.path.join(ROOT, "build", "wizard")
     os.makedirs(out, exist_ok=True)
-    logo = Image.open(os.path.join(ROOT, "alphaapp", "assets", "logo.png")).convert("RGBA")
+    logo = Image.open(os.path.join(ROOT, "erk", "assets", "logo.png")).convert("RGBA")
     logo = logo.crop(logo.getbbox())
     names = {}
     for mode, color in (("light", (15, 15, 15)), ("dark", (255, 255, 255))):

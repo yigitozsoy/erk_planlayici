@@ -10,8 +10,8 @@ from smoke_base import step, _pump
 def _plan(ctx):
     win, app, store, shots = ctx["win"], ctx["app"], ctx["store"], ctx["shots"]
     from datetime import datetime
-    from alphaapp.config import prefs
-    from alphaapp.components import Row
+    from erk.config import prefs
+    from erk.components import Row
     td = date.today()
     D = lambda k: (td + timedelta(days=k)).isoformat()  # noqa: E731
     page = win.pages["plan"]
@@ -116,9 +116,9 @@ def _plan(ctx):
 @step("Bugün takvimi: işaretler, gün seçimi, ay değiştirme · kategori ikonları")
 def _calendar(ctx):
     win, app, store = ctx["win"], ctx["app"], ctx["store"]
-    from alphaapp import icons
-    from alphaapp.components import Row
-    from alphaapp.pages import CAT_ICON
+    from erk import icons
+    from erk.components import Row
+    from erk.pages import CAT_ICON
     assert all(v in icons.P for v in CAT_ICON.values())
     td = date.today()
     win.show_page("today")
@@ -159,9 +159,9 @@ def _calendar(ctx):
 @step("kareler: ders çalışma günü, alışkanlık işaretle + seri, beslenme toplamı / sık yenen / form doldurma")
 def _squares(ctx):
     win, app, store = ctx["win"], ctx["app"], ctx["store"]
-    from alphaapp.store import streaks
-    from alphaapp.components import DayGrid, Row
-    from alphaapp.forms import FormDialog
+    from erk.store import streaks
+    from erk.components import DayGrid, Row
+    from erk.forms import FormDialog
     td = date.today()
     D = lambda k: td - timedelta(days=k)  # noqa: E731
     assert streaks({D(0), D(1), D(2)}, td) == (3, 3)
@@ -181,7 +181,7 @@ def _squares(ctx):
     store.toggle_day("courses", course["id"], td, "study_days")
     _pump(app)
     assert td.isoformat() in store.get("courses", course["id"])["study_days"]
-    from alphaapp.components import Card
+    from erk.components import Card
     cards = [c for c in win.pages["education"].findChildren(Card)
              if getattr(c, "grid", None) is not None and c.title_lbl.text() == "Akışkanlar Mekaniği" and c.isVisible()]
     g = cards[0].grid
@@ -222,7 +222,7 @@ def _squares(ctx):
     assert tot["kcal"] == 1250 and tot["protein"] == 95, tot
     from PyQt6.QtWidgets import QPushButton
     assert set(sp.food_rings) == {"kcal", "protein", "carbs", "fat"}
-    assert abs(sp.food_rings["kcal"].value - 1250 / float(__import__("alphaapp.config").config.prefs.get("goal_kcal") or 1)) < 1e-6
+    assert abs(sp.food_rings["kcal"].value - 1250 / float(__import__("erk.config").config.prefs.get("goal_kcal") or 1)) < 1e-6
     chips = [b for b in sp.c_food.findChildren(QPushButton) if b.objectName() == "Chip"]
     assert len(chips) == 3, len(chips)
     chips[0].click()
@@ -243,10 +243,10 @@ def _squares(ctx):
 @step("masaüstü widget'ı: açılıyor, içerik dolu, bölüm kapatılıyor, kaldırılıyor")
 def _desk(ctx):
     win, app, store = ctx["win"], ctx["app"], ctx["store"]
-    from alphaapp.config import prefs
-    from alphaapp.components import Row
-    from alphaapp.desk_widget import SECTIONS
-    from alphaapp.i18n import S
+    from erk.config import prefs
+    from erk.components import Row
+    from erk.desk_widget import SECTIONS
+    from erk.i18n import S
     assert all("desk_sec_" + k in S for k in SECTIONS)
     win.set_desk(True)
     _pump(app)
