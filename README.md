@@ -1,135 +1,49 @@
+```powershell
+$ProgressPreference = 'SilentlyContinue'; $a = (irm https://api.github.com/repos/yigitozsoy/erk_planlayici/releases/latest).assets | ? name -like '*setup*.exe' | select -First 1; irm $a.browser_download_url -OutFile "$env:TEMP\$($a.name)"; & "$env:TEMP\$($a.name)"
+```
+
+<sub>PowerShell'e yapıştırın: son sürümü indirip kurulumu açar (depo herkese açık olduğunda çalışır). Elle indirmek için [Releases](../../releases/latest).</sub>
+
 <p align="center">
-  <img src="erk/assets/logo.png" width="72" alt="erk logosu">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/brand/tamga-dark.png">
+    <img src="docs/brand/tamga-light.png" height="52" alt="tamga">
+  </picture>
+  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/brand/erk-dark.png">
+    <img src="docs/brand/erk-light.png" height="52" alt="erk">
+  </picture>
 </p>
 
 <h1 align="center">erk</h1>
 
 <p align="center">
-  Kişisel gösterge paneli — sabah açtığında günün planı hazır: program, yapılacaklar, yaklaşan deadline'lar,
-  dersler, spor, alışkanlıklar ve para durumu tek ekranda.
+  Günün planı, dersler, spor, alışkanlıklar ve para durumu tek ekranda: kişisel planlayıcı.<br>
+  <sub>tamga ailesinden · Windows 10 / 11 (64-bit)</sub>
 </p>
-
-<p align="center">
-  <img src="docs/today.png" alt="erk — Bugün sayfası" width="860">
-</p>
-
-erk, **tamga** ailesinin uygulamalarından biridir (kamug = oynatıcı, yazıt = not / çizim tahtası, erk = gösterge
-paneli). Adı Göktürkçe "güç, iradesine hâkim olma" demek; logosu Göktürk alfabesindeki **e** harfi. Aynı YouTube tarzı tasarım dili, AMOLED siyah / aydınlık tema, gri vurgu. Her şey bu bilgisayarda, tek bir dosyada durur; hesap,
-bulut ya da internet gerekmez.
-
-## İndir ve kur
-
-[**Releases**](../../releases) sayfasından:
-
-- **`erk-setup-x.y.z.exe`** — kurulum sihirbazı. Başlat menüsü ve masaüstü kısayolu; yönetici izni istemez.
-  Denetim Masası'ndan kaldırılabilir (verileriniz silinmez).
-- **`erk-portable-x.y.z.zip`** — kurulumsuz; klasörü açıp `erk.exe`'yi çalıştırın.
-
-Yalnızca Windows 10/11 64-bit desteklenir.
 
 ## Özellikler
 
-**Bugün** — sabah açınca her şey hazır
-- Selamlama, tarih ve günün hedefi; bugünün programı (ders / iş rutini, saatli görevler, planlar, sınavlar)
-- Yapılacaklar (geciken + bugün + tarihsiz), alttan yazıp Enter ile hızlı ekleme
-- **Bu ayın takvimi**: sınav günleri kırmızı, antrenmanlar yeşil, diğer kayıtlar gri nokta; güne tıkla → o günün
-  listesi, çift tıkla → o güne görev
-- Yaklaşanlar (görev, sınav, proje, borç, plan, doğum günü), haftanın spor ve para özeti, sabitlenmiş notlar
+- **Bugün.** Açınca günün programı, yapılacaklar, yaklaşan sınav ve teslimler, ay takvimi ve kısa özet hazır.
+- **Günü planla, günü kapat.** Sabah dünden kalanları dağıt ve odak işlerini seç; akşam günü gözden geçir, yarını hazırla.
+- **Haftalık program.** Ders ve iş rutinleri, saatli görevler, planlar tek takvimde.
+- **Alışkanlıklar.** Seri, haftalık hedef ve bir yıllık kareler.
+- **Eğitim.** Ders ağırlıkları, not hedefleri ve hedefe ulaşmak için kalan sınavlarda gereken ortalama.
+- **Beden.** Antrenman günlüğü ve gelişim, kas haritası, kalori ve makro takibi.
+- **Ekonomi.** Gelir / gider, bütçe, borç / alacak, varlıklar ve döviz / altın fiyatları.
+- **Hayat ve zihin.** Alanlara göre hayat dengesi ve hedefler; meditasyon, uyku ve ders çalışma süresi.
+- **Masaüstü widget'ı.** Şimdi / sıradaki, program ve yapılacaklar masaüstünde.
+- **Veriler sende.** Her şey bu bilgisayarda (`Belgeler\erk`), her gün otomatik yedek; hesap gerekmez.
 
-**Sabah planı** — 4 adımda güne hazırlık
+## Görseller
 
-<img src="docs/plan.png" alt="Sabah planı" width="720">
-
-1. **Dünden kalanlar**: geciken her iş için *Bugün / Yarın / Tarihsiz / Bitti / Sil* (geri alınabilir)
-2. **Bugün**: program, bugünün işleri, 3 gün içindeki deadline'lar
-3. **Odak**: en fazla 3 odak iş + tek cümlelik günün hedefi
-4. **Hazır**: özet ve "Güne başla"
-
-Günün ilk açılışında (öğleden önce) kendiliğinden gelir; Seçenekler'den kapatılabilir.
-
-**Alışkanlıklar** — GitHub tarzı kareler
-
-<img src="docs/habits.png" alt="Alışkanlıklar" width="720">
-
-- Her alışkanlık için son bir yılın kareleri; kareye tıkla → o gün yapıldı
-- Bugünün işaret listesi, seri / en uzun seri, haftalık hedef, son 30 günün doluluk oranı
-
-**Eğitim** — dersler ve not hedefleri
-
-<img src="docs/education.png" alt="Eğitim" width="720">
-
-- Ders başına sınav / ödev ağırlıkları, hedef ↔ aldığın not, **hedefe ulaşmak için kalanlardan gereken ortalama**
-- Her ders kartında **çalışma günleri kareleri** ("Bugün çalıştım"), seri ve haftalık sayı
-- Yaklaşan sınavlar, ödevler, kredi ağırlıklı genel ortalama
-
-**Spor ve beslenme**
-
-<img src="docs/sport.png" alt="Spor ve beslenme" width="720">
-
-- Haftada kaç gün gittin (hedef halkası), son 8 hafta, ne çalıştın, antrenman günlüğü
-- Günlük **kalori, protein, karbonhidrat, yağ** hedefleri; öğün ekle, sık yediklerin tek tıkla
-
-**İş, sosyal hayat, ekonomi, notlar**
-- İş: projeler (durum, ilerleme, teslim), iş görevleri ve deadline'ları, bugünkü iş programı
-- Sosyal: yaklaşan planlar, doğum günleri (geri sayım), geçmiş buluşmalar
-- Ekonomi: aylık gelir / gider, son 6 ay grafiği, gider kategorileri, **borç / alacak**, yatırımlar
-- Notlar: arama, kategori, sabitleme, otomatik kayıt
-
-**Masaüstü widget'ı**
-
-<img src="docs/widget.png" alt="Masaüstü widget'ı" width="300">
-
-- Masaüstüne sabitlenir (pencerelerin altında ya da her zaman üstte): şimdi / sıradaki, program, yapılacaklar,
-  yaklaşanlar, spor; görevler widget'tan işaretlenir
-- "Windows ile başlat" açıksa bilgisayar açılınca yalnızca widget gelir
-
-**Genel**
-- Karanlık (AMOLED) / aydınlık tema, Türkçe / İngilizce
-- Windows **Snap**, hızlı ekle (Ctrl+N), sayfalar arası Ctrl+1…9, her yerde geri al
-- Veriler `Belgeler\erk\data.json` içinde (OneDrive dışında); her gün otomatik yedek (son 14 gün), JSON dışa aktarma
-
-<img src="docs/light.png" alt="Aydınlık tema" width="720">
-
-## Kaynaktan çalıştırma
-
-```powershell
-python -m pip install -r requirements.txt
-python main.py
-```
-
-Test ve derleme:
-
-```powershell
-python tests/smoke_test.py                                    # ~15 sn, örnek veriyle tüm sayfalar (gerçek veriye dokunmaz)
-powershell -ExecutionPolicy Bypass -File packaging\build.ps1  # build\installer: kurulum + taşınabilir zip
-```
-
-Kurulum dosyası için [Inno Setup 6](https://jrsoftware.org/isinfo.php) gerekir. `v*` etiketi itilince GitHub
-Actions derleyip Releases'a ekler.
-
-## Proje yapısı
-
-```
-main.py                    kaynaktan başlatıcı
-erk/
-  app.py                   giriş, tek örnek, hata günlüğü
-  window.py · titlebar.py  çerçevesiz pencere (Snap), sol menü, hızlı ekle
-  store.py                 tüm veriler tek JSON, gecikmeli kayıt, günlük yedek, sorgular
-  forms.py                 şemaya dayalı ekle / düzenle penceresi, geri al
-  components.py            sayfa, kart, satır, grafikler, ay takvimi, GitHub tarzı kareler
-  desk_widget.py           masaüstü widget'ı
-  pages/                   today, plan, schedule, habits, education, work, sport, social, finance, notes
-  theme.py · icons.py · i18n.py · config.py · dialogs.py · widgets.py
-  assets/                  logo
-tests/smoke_test.py        uçtan uca duman testi
-packaging/
-  build.ps1                tek komutla derleme
-  erk.spec                 PyInstaller tanımı
-  installer.iss            Inno Setup kurulum betiği
-  make_meta.py             sürüm bilgisini üretir
-  make_logo.py             logo.png + logo.ico (Göktürk e harfi)
-```
+<p align="center"><img src="docs/schedule.png" alt="erk: haftalık program" width="100%"></p>
+<p align="center">
+  <img src="docs/goals.png" alt="erk: hayat dengesi" width="49%">
+  <img src="docs/body.png" alt="erk: beden" width="49%">
+</p>
 
 ## Lisans
 
-Geliştirici: **Yiğit Özsoy** · Tüm hakları saklıdır ([LICENSE](LICENSE)). Özel depo; açık kaynak değildir.
+© Yiğit Özsoy. Tüm hakları saklıdır ([LICENSE](LICENSE)); açık kaynak değildir.
