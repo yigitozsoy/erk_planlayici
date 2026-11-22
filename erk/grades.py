@@ -1,5 +1,5 @@
 """Not ortalaması: dönem ortalaması (ANO) ve genel ortalama (AGNO). Kullanıcının Excel hesaplayıcısının
-(lectures_for_alpha.xlsx: "lectures", "5.1", "5.2" sayfaları) birebir karşılığı:
+(lectures_for_erk.xlsx: "lectures", "5.1", "5.2" sayfaları) birebir karşılığı:
 
 * Harf → 4'lük not: AA 4 · BA 3.5 · BB 3 · CB 2.5 · CC 2 · DC 1.5 · DD 1 · FD 0.5 · FF 0 · D 0 · NA 0.
   Sayı yazılmışsa olduğu gibi. "XX" ya da boş = not yok → AKTS'ye de girmez.

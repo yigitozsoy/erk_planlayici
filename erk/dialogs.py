@@ -126,10 +126,6 @@ def set_autostart(on):
                     winreg.DeleteValue(k, "erk")
                 except FileNotFoundError:
                     pass
-            try:
-                winreg.DeleteValue(k, "alpha")       # eski adla kalan kayıt (erk'in eski adı alpha)
-            except FileNotFoundError:
-                pass
         return True
     except OSError:
         return False
@@ -392,7 +388,7 @@ class PrefsDialog(ThemedDialog):
         lay.addWidget(self.web_status_row)
         section(t("web_setup"))
         self.web_url = QLineEdit(prefs.get("web_url", ""))
-        self.web_url.setPlaceholderText("https://…/api/alpha.php")
+        self.web_url.setPlaceholderText("https://…/api/erk.php")
         self.web_url.setMinimumWidth(300)
         self.web_url.editingFinished.connect(lambda: prefs.set("web_url", self.web_url.text().strip()))
         lay.addWidget(_row(t("web_url"), self.web_url, t("web_url_sub")))
@@ -501,7 +497,7 @@ class PrefsDialog(ThemedDialog):
 
     def _web_page_host(self):
         from .web import page_url
-        u = page_url(prefs.get("web_url")) or "…/alpha/"
+        u = page_url(prefs.get("web_url")) or "…/erk/"
         return u.split("://", 1)[-1].rstrip("/")
 
     def _web_update(self, *_a):
@@ -534,7 +530,7 @@ class PrefsDialog(ThemedDialog):
         self.win.toast(t("web_copied"))
 
     def _web_keyfile(self):
-        """api/_alpha_key.php'yi sitenin yerel klasörüne yazar (sonra siteye yüklenir)."""
+        """api/_erk_key.php'yi sitenin yerel klasörüne yazar (sonra siteye yüklenir)."""
         from .web import key_file_text
         start = prefs.get("web_site_dir") or os.path.expanduser("~")
         d = QFileDialog.getExistingDirectory(self, t("web_keyfile_pick"), start)
@@ -542,7 +538,7 @@ class PrefsDialog(ThemedDialog):
             return
         prefs.set("web_site_dir", d)
         target = os.path.join(d, "api") if os.path.isdir(os.path.join(d, "api")) else d
-        path = os.path.join(target, "_alpha_key.php")
+        path = os.path.join(target, "_erk_key.php")
         with open(path, "w", encoding="utf-8", newline="\n") as f:
             f.write(key_file_text(self._web_key()))
         self.win.toast(t("web_keyfile_saved", p=path))
@@ -564,7 +560,7 @@ class PrefsDialog(ThemedDialog):
             d = prefs.get("web_site_dir")
             target = os.path.join(d, "api") if os.path.isdir(os.path.join(d, "api")) else d
             try:
-                with open(os.path.join(target, "_alpha_key.php"), "w", encoding="utf-8", newline="\n") as f:
+                with open(os.path.join(target, "_erk_key.php"), "w", encoding="utf-8", newline="\n") as f:
                     f.write(key_file_text(prefs.get("web_key")))
             except OSError:
                 pass

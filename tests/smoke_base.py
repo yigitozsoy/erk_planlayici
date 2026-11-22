@@ -8,7 +8,6 @@ from datetime import date, timedelta
 # gerçek tercihlere / verilere ASLA dokunma
 _tmp = tempfile.mkdtemp(prefix="erk-test-")
 os.environ["LOCALAPPDATA"] = _tmp
-os.environ.pop("ALPHA_DATA_DIR", None)
 os.environ["ERK_DATA_DIR"] = os.path.join(_tmp, "docs-erk")
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 os.environ.setdefault("QT_QPA_FONTDIR", os.path.join(os.environ.get("WINDIR", r"C:\Windows"), "Fonts"))

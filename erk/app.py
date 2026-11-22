@@ -83,8 +83,6 @@ def main():
 
     from .theme import theme
     theme.apply()
-    from .config import migrate_old_data
-    migrate_old_data()                     # veri klasörü boşsa eski kopyadan bir kez (config.py)
     from .store import Store
     from .window import MainWindow
     store = Store()

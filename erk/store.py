@@ -55,7 +55,7 @@ from datetime import date, datetime, timedelta
 from PyQt6.QtCore import QObject, pyqtSignal, QTimer
 
 from .config import day_today
-from .config import DATA_FILE, BACKUP_DIR, prefs, remap_path
+from .config import DATA_FILE, BACKUP_DIR, prefs
 
 COLLECTIONS = ("tasks", "routine", "courses", "exams", "workouts", "projects", "events", "birthdays",
                "transactions", "debts", "investments", "notes", "days", "habits", "meals", "accounts",
@@ -117,15 +117,6 @@ def _exam_label(name):
     return grades.exam_label(name, is_tr())
 
 
-def _remap_paths(rec):
-    """Kayıttaki eski klasör yollarını (Documents\\alpha\\... → Documents\\erk\\...) çevirir; görseller dosya adıyla
-    saklandığı için genelde bir şey değişmez, elle yazılmış tam yollar için."""
-    for k, v in rec.items():
-        if isinstance(v, str) and len(v) > 3 and v[1:3] in (":\\", ":/"):
-            rec[k] = remap_path(v)
-    return rec
-
-
 class Store(QObject):
     changed = pyqtSignal(str)   # koleksiyon adı
 
@@ -139,7 +130,7 @@ class Store(QObject):
         self._timer.setInterval(400)
         self._timer.timeout.connect(self.flush)
         self._dirty = False
-        # dosya dışarıdan değişirse (elle düzenleme, başka bir erk / eski alpha) kaydedilmemiş değişiklik yoksa yeniden oku
+        # dosya dışarıdan değişirse (elle düzenleme, başka bir erk) kaydedilmemiş değişiklik yoksa yeniden oku
         self._watch = QTimer(self)
         self._watch.setInterval(3000)
         self._watch.timeout.connect(self.check_external)
@@ -181,7 +172,7 @@ class Store(QObject):
             for c in COLLECTIONS:
                 v = loaded.get(c)
                 if isinstance(v, list):
-                    self.data[c] = [_remap_paths(x) for x in v if isinstance(x, dict)]
+                    self.data[c] = [x for x in v if isinstance(x, dict)]
             # bu sürümün tanımadığı bölümler (daha yeni bir sürüm yazmış olabilir) olduğu gibi korunur
             self._extra = {k: v for k, v in loaded.items() if k not in COLLECTIONS}
         self._daily_backup()

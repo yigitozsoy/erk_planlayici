@@ -204,8 +204,7 @@ main { flex: 1; min-width: 0; padding: 18px 28px 28px; }
 <script>
 (() => {
   "use strict";
-  // sunucu (api/alpha.php, X-Alpha-Key) ve kayıt adları uygulamanın eski adı alpha'dan kalır: alpha/ sayfasındaki anahtar burada da geçerli
-  const API = "../api/alpha.php", KEY = "alpha_key", CACHE = "alpha_cache2", THEME = "alpha_theme", PAGE = "alpha_page";
+  const API = "../api/erk.php", KEY = "erk_key", CACHE = "erk_cache2", THEME = "erk_theme", PAGE = "erk_page";
   const $ = (id) => document.getElementById(id);
   const ls = {
     get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
@@ -457,7 +456,7 @@ main { flex: 1; min-width: 0; padding: 18px 28px 28px; }
     if (!key) return showLogin("");
     $("refreshBtn").classList.add("spin");
     try {
-      const r = await fetch(`${API}?action=get`, { headers: { "X-Alpha-Key": key }, cache: "no-store" });
+      const r = await fetch(`${API}?action=get`, { headers: { "X-Erk-Key": key }, cache: "no-store" });
       if (r.status === 401) { ls.del(KEY); ls.del(CACHE); D = null; return showLogin("Bağlantı geçersiz — erk'ten yeniden kopyala."); }
       const j = await r.json();
       if (!j.ok) throw new Error(j.error || "hata");

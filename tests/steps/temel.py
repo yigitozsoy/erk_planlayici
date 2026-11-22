@@ -78,8 +78,8 @@ def _web(ctx):
     td = day_today().isoformat()
     assert [d for d in snap["days"] if d["date"] == td][0]["blocks"], "bugün boş"
     assert len(snap["days"]) == web.DAYS_BACK + web.DAYS_AHEAD + 1
-    assert web.page_url("https://ornek.net/api/alpha.php") == "https://ornek.net/alpha/"
-    assert not web.url_ok("http://ornek.net/api/alpha.php") and web.url_ok("https://ornek.net/api/alpha.php")
+    assert web.page_url("https://ornek.net/api/erk.php") == "https://ornek.net/erk/"
+    assert not web.url_ok("http://ornek.net/api/erk.php") and web.url_ok("https://ornek.net/api/erk.php")
     assert web.key_hash("a") in web.key_file_text("a") and "a'" not in web.key_file_text("a")
     assert not ctx["win"].web.enabled() and ctx["win"].web.push() is False
     store.delete("goals", g["id"])

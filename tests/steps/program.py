@@ -185,154 +185,25 @@ def _habit_rules(ctx):
     assert "NoFap" not in snap
 
 
-# Sahte Windows Belgeler (OneDrive) klasörü: config._documents_dir SHGetFolderPathW'yi çağırır; alt süreçte taklit edilir
-_FAKE_SHELL = """
-import ctypes, os
-class _Shell:
-    def SHGetFolderPathW(self, a, b, c, d, buf):
-        buf.value = os.environ["FAKE_ONEDRIVE_DOCS"]
-        return 0
-ctypes.windll.shell32 = _Shell()
-"""
-
-
 def _run_cfg(env, code):
     import subprocess
-    out = subprocess.run([sys.executable, "-c", _FAKE_SHELL + code], cwd=ROOT, env=env, capture_output=True,
+    out = subprocess.run([sys.executable, "-c", code], cwd=ROOT, env=env, capture_output=True,
                          text=True, encoding="utf-8")
     assert out.returncode == 0, out.stderr
     return out.stdout.strip()
 
 
-def _jw(path, title, **extra):
-    import json
-    os.makedirs(os.path.dirname(path), exist_ok=True)
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump({"tasks": [{"id": "x", "title": title}], **extra}, f)
-
-
-def _jt(path):
-    import json
-    with open(path, encoding="utf-8") as f:
-        return json.load(f)["tasks"][0]["title"]
-
-
-def _mig_env(base):
-    """Gerçek kullanıcı klasörleri yerine base altında sahte ev / LOCALAPPDATA / OneDrive (veri ortam değişkeni yok)."""
-    env = {k: v for k, v in os.environ.items() if k not in ("ERK_DATA_DIR", "ALPHA_DATA_DIR")}
+@step("veri klasörleri: Documents/erk + %LOCALAPPDATA%/erk, ERK_DATA_DIR ezer")
+def _data_dirs(ctx):
+    base = tempfile.mkdtemp(prefix="erk-dirs-")
+    env = {k: v for k, v in os.environ.items() if k != "ERK_DATA_DIR"}
     env.update(USERPROFILE=os.path.join(base, "home"), LOCALAPPDATA=os.path.join(base, "local"),
-               FAKE_ONEDRIVE_DOCS=os.path.join(base, "onedrive", "Belgeler"), PYTHONIOENCODING="utf-8")
-    return env
-
-
-_MIG = "import erk.config as c; c.migrate_old_data(); print(c.DATA_DIR + '|' + c.APP_DIR)"
-
-
-@step("veri taşıma (alpha → erk): Documents\\alpha yeniden adlandırılır, OneDrive'daki eski kopya güncel veriyi EZMEZ")
-def _migrate(ctx):
-    import json
-    import time
-    # 1) gerçek durum: Documents\alpha (güncel) + OneDrive\Belgeler\alpha (16 Kasım kopyası) + %LOCALAPPDATA%\alpha
-    base = tempfile.mkdtemp(prefix="erk-mig-")
-    env = _mig_env(base)
-    docs_a = os.path.join(base, "home", "Documents", "alpha")
-    docs_e = os.path.join(base, "home", "Documents", "erk")
-    one = os.path.join(base, "onedrive", "Belgeler", "alpha")
-    loc_a, loc_e = os.path.join(base, "local", "alpha"), os.path.join(base, "local", "erk")
-    _jw(os.path.join(one, "data.json"), "eski-onedrive")
-    os.makedirs(os.path.join(one, "images"))
-    open(os.path.join(one, "images", "eski.png"), "wb").close()
-    one_mtime = os.path.getmtime(os.path.join(one, "data.json"))
-    time.sleep(0.05)
-    _jw(os.path.join(docs_a, "data.json"), "guncel")
-    os.makedirs(os.path.join(docs_a, "images"))
-    open(os.path.join(docs_a, "images", "hedef.png"), "wb").close()
-    # 2.0 taşımasının işareti (yeni dosyaya o zamandan beri dokunuldu)
-    with open(os.path.join(docs_a, ".tasindi.json"), "w", encoding="utf-8") as f:
-        f.write('{"old_mtime": %f, "new_mtime": 1, "from": "x"}' % one_mtime)
-    os.makedirs(loc_a)
-    with open(os.path.join(loc_a, "preferences.json"), "w", encoding="utf-8") as f:
-        json.dump({"name": "Test", "backup_dir": os.path.join(docs_a, "usb"), "web_url": "https://x/api/alpha.php"}, f)
-    _jw(os.path.join(loc_a, "data.json"), "eski-1x")
-    os.makedirs(docs_e)                                   # boş Documents\erk (ör. elle açılmış) silinip yerine geçilir
-    out = _run_cfg(env, _MIG)
-    assert out == docs_e + "|" + loc_e, out
-    assert not os.path.exists(docs_a) and not os.path.exists(loc_a)
-    assert _jt(os.path.join(docs_e, "data.json")) == "guncel"          # 16 Kasım kopyası gelmedi
-    assert os.path.exists(os.path.join(docs_e, "images", "hedef.png"))
-    assert not os.path.exists(os.path.join(docs_e, "images", "eski.png"))
-    assert _jt(os.path.join(one, "data.json")) == "eski-onedrive"       # eski kopyaya dokunulmadı
-    assert not os.path.exists(os.path.join(one, "VERILER-TASINDI.txt"))
-    with open(os.path.join(loc_e, "preferences.json"), encoding="utf-8") as f:
-        p = json.load(f)
-    assert p["backup_dir"] == os.path.join(docs_e, "usb") and p["name"] == "Test", p
-    assert p["web_url"] == "https://x/api/alpha.php"
-    # ikinci açılış: hiçbir şey değişmez; sonradan eski alpha Documents\alpha'yı yeniden yaratsa da erk onu kullanmaz
-    _jw(os.path.join(docs_a, "data.json"), "eski-alpha-sonra")
-    out = _run_cfg(env, _MIG)
-    assert out.split("|")[0] == docs_e and _jt(os.path.join(docs_e, "data.json")) == "guncel"
-    assert _jt(os.path.join(docs_a, "data.json")) == "eski-alpha-sonra"
-
-    # 2) Documents\erk de Documents\alpha da yok → eski kopya (OneDrive\Belgeler\alpha) bir kez kopyalanır
-    base = tempfile.mkdtemp(prefix="erk-mig-")
-    env = _mig_env(base)
-    one = os.path.join(base, "onedrive", "Belgeler", "alpha")
-    _jw(os.path.join(one, "data.json"), "eski-onedrive")
-    os.makedirs(os.path.join(one, "images"))
-    open(os.path.join(one, "images", "eski.png"), "wb").close()
-    out = _run_cfg(env, _MIG)
-    docs_e = os.path.join(base, "home", "Documents", "erk")
-    assert out.split("|")[0] == docs_e
-    assert _jt(os.path.join(docs_e, "data.json")) == "eski-onedrive"
-    assert os.path.exists(os.path.join(docs_e, "images", "eski.png")) and os.path.exists(os.path.join(one, "data.json"))
-    # yeni dosya değiştikten sonra eski kopya bir daha asla üzerine yazmaz
-    _jw(os.path.join(docs_e, "data.json"), "yeni")
-    time.sleep(1.1)
-    _jw(os.path.join(one, "data.json"), "eski-onedrive-sonra")
-    _run_cfg(env, _MIG)
-    assert _jt(os.path.join(docs_e, "data.json")) == "yeni"
-
-    # 3) eski alpha açık (tek örnek borusu var) → yeniden adlandırma yok, bu oturum eski klasörlerle
-    base = tempfile.mkdtemp(prefix="erk-mig-")
-    env = _mig_env(base)
-    docs_a = os.path.join(base, "home", "Documents", "alpha")
-    _jw(os.path.join(docs_a, "data.json"), "guncel")
-    _jw(os.path.join(base, "onedrive", "Belgeler", "alpha", "data.json"), "eski-onedrive")
-    code = ("import os, zlib\nfrom multiprocessing.connection import Listener\n"
-            "n = 'alpha-dashboard-%08x' % zlib.crc32(os.path.normcase(os.path.join(os.environ['USERPROFILE'], "
-            "'Documents', 'alpha')).encode('utf-8'))\nL = Listener('\\\\\\\\.\\\\pipe\\\\' + n)\n" + _MIG.replace("; print", "\nL.close(); print"))
+               PYTHONIOENCODING="utf-8")
+    code = "import erk.config as c; print(c.DATA_DIR + '|' + c.APP_DIR)"
     out = _run_cfg(env, code)
-    assert out.split("|")[0] == docs_a and out.split("|")[1] == os.path.join(base, "local", "erk"), out
-    assert _jt(os.path.join(docs_a, "data.json")) == "guncel"
-    assert not os.path.exists(os.path.join(base, "home", "Documents", "erk", "data.json"))
-
-    # 4) Documents\alpha'da açık (kilitli) dosya → yeniden adlandırılamaz, o oturum Documents\alpha ile; eski kopya gelmez
-    base = tempfile.mkdtemp(prefix="erk-mig-")
-    env = _mig_env(base)
-    docs_a = os.path.join(base, "home", "Documents", "alpha")
-    _jw(os.path.join(docs_a, "data.json"), "guncel")
-    _jw(os.path.join(base, "onedrive", "Belgeler", "alpha", "data.json"), "eski-onedrive")
-    with open(os.path.join(docs_a, "kilit.txt"), "w") as lock:
-        lock.write("x")
-        lock.flush()
-        out = _run_cfg(env, _MIG)
-    if out.split("|")[0] == docs_a:                     # Windows: açık dosyalı klasör taşınamaz
-        assert _jt(os.path.join(docs_a, "data.json")) == "guncel"
-    else:
-        assert _jt(os.path.join(out.split("|")[0], "data.json")) == "guncel", out
-
-    # 5) eski ad ALPHA_DATA_DIR hâlâ okunur; ERK_DATA_DIR önceliklidir; 1.x %LOCALAPPDATA%\alpha yalnızca boşken
-    base = tempfile.mkdtemp(prefix="erk-mig-")
-    env = _mig_env(base)
-    _jw(os.path.join(base, "local", "alpha", "data.json"), "eski-1x")
-    env["ALPHA_DATA_DIR"] = os.path.join(base, "eski-ad")
-    out = _run_cfg(env, "import erk.config as c; print(c.DATA_DIR)")
-    assert out == os.path.join(base, "eski-ad") and not os.path.exists(os.path.join(out, "data.json"))  # import kopyalamaz
-    env["ERK_DATA_DIR"] = os.path.join(base, "yeni-ad")
-    out = _run_cfg(env, _MIG)
-    assert out.split("|")[0] == os.path.join(base, "yeni-ad")
-    assert _jt(os.path.join(base, "yeni-ad", "data.json")) == "eski-1x"
-    assert os.path.exists(os.path.join(base, "local", "erk", "data.json"))   # 1.x dosyası silinmedi (yeni adla)
+    assert out == os.path.join(base, "home", "Documents", "erk") + "|" + os.path.join(base, "local", "erk"), out
+    env["ERK_DATA_DIR"] = os.path.join(base, "baska")
+    assert _run_cfg(env, code).split("|")[0] == os.path.join(base, "baska")
 
 
 @step("sabah planı 2: 1-5 tuşları, dünün özeti, ilerleme, zaman şeridi + boşluğa iş koyma")

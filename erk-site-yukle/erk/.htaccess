@@ -1,4 +1,4 @@
-# erk (eski adı alpha): kişisel gündem sayfası — arama motorlarına kapalı, önbelleğe alınmaz
+# erk: kişisel gündem sayfası — arama motorlarına kapalı, önbelleğe alınmaz
 <IfModule mod_headers.c>
   Header set X-Robots-Tag "noindex, nofollow"
   Header set Cache-Control "no-cache"

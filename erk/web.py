@@ -3,9 +3,8 @@
 Yalnızca "yapmam gerekenler" gider: program, görevler, planlar, sınavlar, teslimler, borç/alacak tarihleri, doğum
 günleri. Hedefler, vision board, notlar, ekonomi kayıtları, beslenme GİTMEZ.
 
-Sunucu: api/alpha.php (yigitozsoy.net; dosya / başlık adları uygulamanın eski adı alpha'dan kalır, sunucu elle
-güncellendiği için DEĞİŞTİRME). Anahtar (prefs web_key) X-Alpha-Key başlığında gider; sunucuda yalnızca
-sha256'sı durur (api/_alpha_key.php, key_file_text() üretir). Telefondaki sayfa anahtarı bağlantının #k= kısmından alır.
+Sunucu: api/erk.php (yigitozsoy.net; kullanıcı elle yükler). Anahtar (prefs web_key) X-Erk-Key başlığında gider;
+sunucuda yalnızca sha256'sı durur (api/_erk_key.php, key_file_text() üretir). Telefondaki sayfa anahtarı bağlantının #k= kısmından alır.
 """
 import hashlib
 import json
@@ -23,13 +22,12 @@ DAYS_BACK, DAYS_AHEAD = 7, 30         # haftalık program için geçen hafta da
 MAX_AGE_MIN = 60                     # içerik değişmese de en geç bu kadar dakikada bir gönder ("son güncelleme")
 
 
-# Telefondaki sayfanın klasörü. Sitede hâlâ alpha/ var; erk-site-yukle/erk/ yüklenince "erk" yapılabilir
-# (aynı alan adı → telefonun kayıtlı anahtarı iki sayfada da geçerli).
-PAGE_DIR = "alpha"
+# Telefondaki sayfanın klasörü (sitede erk/, kopyası repoda erk-site-yukle/erk/)
+PAGE_DIR = "erk"
 
 
 def page_url(api_url):
-    """https://site/api/alpha.php → https://site/alpha/ (PAGE_DIR)"""
+    """https://site/api/erk.php → https://site/erk/ (PAGE_DIR)"""
     u = (api_url or "").strip()
     if "/api/" in u:
         return u.split("/api/")[0] + f"/{PAGE_DIR}/"
@@ -51,8 +49,8 @@ def key_hash(key):
 
 
 def key_file_text(key):
-    """Sunucudaki api/_alpha_key.php içeriği (anahtarın kendisi değil, yalnızca özeti)."""
-    return ("<?php\n// erk (eski adı alpha) web anahtarının sha256 özeti (erk > Seçenekler > Web'den üretildi)\n"
+    """Sunucudaki api/_erk_key.php içeriği (anahtarın kendisi değil, yalnızca özeti)."""
+    return ("<?php\n// erk web anahtarının sha256 özeti (erk > Seçenekler > Web'den üretildi)\n"
             f"return '{key_hash(key)}';\n")
 
 
@@ -291,7 +289,7 @@ class WebSync(QObject):
         body = json.dumps(snap, ensure_ascii=False).encode("utf-8")
         req = QNetworkRequest(QUrl(prefs.get("web_url").strip() + "?action=push"))
         req.setHeader(QNetworkRequest.KnownHeaders.ContentTypeHeader, "application/json; charset=utf-8")
-        req.setRawHeader(b"X-Alpha-Key", prefs.get("web_key").encode("ascii", "ignore"))
+        req.setRawHeader(b"X-Erk-Key", prefs.get("web_key").encode("ascii", "ignore"))
         req.setTransferTimeout(20_000)
         # Qt yönlendirmeyi kendisi izlerse POST'u GET'e çevirir: elle izle (_done)
         req.setAttribute(QNetworkRequest.Attribute.RedirectPolicyAttribute,

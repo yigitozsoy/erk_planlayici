@@ -14,9 +14,7 @@
 </p>
 
 erk, **tamga** ailesinin uygulamalarından biridir (kamug = oynatıcı, yazıt = not / çizim tahtası, erk = gösterge
-paneli). Adı Göktürkçe "güç, iradesine hâkim olma" demek; logosu Göktürk alfabesindeki **e** harfi. Eski adı
-**alpha**'ydı: yeni kurulum alpha'nın üstüne kurulur, kayıtlar (`Belgeler\alpha` → `Belgeler\erk`) ilk açılışta
-kendiliğinden taşınır. Aynı YouTube tarzı tasarım dili, AMOLED siyah / aydınlık tema, gri vurgu. Her şey bu bilgisayarda, tek bir dosyada durur; hesap,
+paneli). Adı Göktürkçe "güç, iradesine hâkim olma" demek; logosu Göktürk alfabesindeki **e** harfi. Aynı YouTube tarzı tasarım dili, AMOLED siyah / aydınlık tema, gri vurgu. Her şey bu bilgisayarda, tek bir dosyada durur; hesap,
 bulut ya da internet gerekmez.
 
 ## İndir ve kur

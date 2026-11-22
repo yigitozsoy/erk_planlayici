@@ -42,7 +42,7 @@ def draw_glyph(img, box, color):
 
 
 def make_png(path, ss=8):
-    w, h = 286, 306                              # alpha'nın eski logosuyla aynı tuval (yerleşim değişmesin)
+    w, h = 286, 306                              # tuval boyutu (yerleşim değişmesin)
     big = Image.new("RGBA", (w * ss, h * ss), (255, 255, 255, 0))
     gh = (h - 60) * ss
     draw_glyph(big, ((w * ss - W * gh) / 2, 30 * ss, gh), (255, 255, 255, 255))

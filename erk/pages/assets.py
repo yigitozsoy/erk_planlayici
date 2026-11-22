@@ -18,7 +18,7 @@ STALE_S = 300
 
 def offline():
     """Testte / ekransız çizimde ağa çıkma."""
-    return "1" in (os.environ.get("ERK_OFFLINE"), os.environ.get("ALPHA_OFFLINE")) or os.environ.get("QT_QPA_PLATFORM") == "offscreen"
+    return os.environ.get("ERK_OFFLINE") == "1" or os.environ.get("QT_QPA_PLATFORM") == "offscreen"
 
 
 def _pct(a, b):

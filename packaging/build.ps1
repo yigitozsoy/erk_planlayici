@@ -1,5 +1,5 @@
 ﻿<#
-erk — derleme betiği (tamga ailesi; eski adı alpha)
+erk — derleme betiği (tamga ailesi)
   1) Bağımlılıkları kurar (isteğe bağlı)
   2) Sürüm bilgisini üretir (erk/__init__.py → __version__)
   3) PyInstaller ile build\dist\erk\erk.exe
@@ -26,8 +26,8 @@ if ($InstallDeps) {
     if ($LASTEXITCODE -ne 0) { throw "pip install başarısız" }
 }
 
-# açık erk.exe (ya da eski adla derlenmiş alpha.exe) dosyaları kilitler; derlemeden önce düzgünce kapat (veriler kaydedilsin), olmazsa dur
-$running = @(Get-Process erk, alpha -ErrorAction SilentlyContinue | Where-Object { $_.Path -like "$Root\build\dist\*" })
+# açık erk.exe dosyaları kilitler; derlemeden önce düzgünce kapat (veriler kaydedilsin), olmazsa dur
+$running = @(Get-Process erk -ErrorAction SilentlyContinue | Where-Object { $_.Path -like "$Root\build\dist\*" })
 foreach ($p in $running) { & taskkill.exe /PID $p.Id | Out-Null }
 foreach ($p in $running) {
     if (-not $p.WaitForExit(8000)) { throw "erk hâlâ açık; kapatıp tekrar deneyin" }

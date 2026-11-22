@@ -1,5 +1,5 @@
 """Hatırlatma sesleri: dışarıdan dosya yok, WAV'lar burada sentezlenir (APP_DIR\\sounds) ve winsound ile çalınır.
-Testte / offscreen'de (QT_QPA_PLATFORM=offscreen) ya da ERK_MUTE=1 (eski ALPHA_MUTE=1) iken çalınmaz, yalnızca dosya üretilir."""
+Testte / offscreen'de (QT_QPA_PLATFORM=offscreen) ya da ERK_MUTE=1 iken çalınmaz, yalnızca dosya üretilir."""
 import math
 import os
 import struct
@@ -73,7 +73,7 @@ def ensure(name, volume=0.7):
 
 
 def muted():
-    return "1" in (os.environ.get("ERK_MUTE"), os.environ.get("ALPHA_MUTE")) or os.environ.get("QT_QPA_PLATFORM") == "offscreen"
+    return os.environ.get("ERK_MUTE") == "1" or os.environ.get("QT_QPA_PLATFORM") == "offscreen"
 
 
 def play(name, volume=0.7):

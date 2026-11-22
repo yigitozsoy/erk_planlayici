@@ -1,10 +1,10 @@
 # erk — Claude için proje notları
 
-**erk** (eski adı **alpha**), Yiğit'in kişisel gösterge paneli. Uygulama ailesinin adı **tamga** (hep küçük harf):
-kamug = oynatıcı (eski gamma), yazıt = toplantı tahtası + ekran alıntısı (eski delta), erk = dashboard (eski alpha).
+**erk**, Yiğit'in kişisel gösterge paneli. Uygulama ailesinin adı **tamga** (hep küçük harf):
+kamug = oynatıcı, yazıt = toplantı tahtası + ekran alıntısı, erk = dashboard.
 "erk" Göktürkçe "güç, iradesine hâkim olma"; logo Göktürk **e** harfi (dikey gövde, üstten sola inen + alttan sağa
 çıkan kısa eğik kol), `packaging/make_logo.py` üretir (`--site` ile telefon sayfasının simgeleri de). Sabah açınca
-günün planı hazır olsun diye yapıldı. Repo klasörü `Desktop\erk`, GitHub deposu `erk_planlayici` (eski adı alpha_dashboard; GitHub eski adresi yönlendirir).
+günün planı hazır olsun diye yapıldı. Repo klasörü `Desktop\erk`, GitHub deposu `erk_planlayici`.
 Geliştiriciyle çalışma tarzı, tasarım zevki ve iş akışı kuralları **gamma (kamug) ile aynı**:
 `C:\Users\yigit\OneDrive\Desktop\gamma\CLAUDE.md` bölüm 2'yi oku (Türkçe yaz, makul varsayılanla ilerle,
 gri vurgu / AMOLED siyah, mor yok, YouTube görünümü, önce çalıştırıp doğrula, commit yalnızca istenince).
@@ -24,35 +24,25 @@ kullanıcıya görünen bir değişiklikten sonra kurulumu yeniden derle (kullan
 (QLocalServer adı `erk-<crc32>`) veri klasörünün (DATA_DIR) crc32'sine bağlı: geçici ERK_DATA_DIR ile açılan test
 exe'si gerçek erk'e bağlanmaz. AppUserModelID `tamga.erk`.
 **Veri yerleri:** kayıtlar + hedef görselleri (images) + yedekler yerel `%USERPROFILE%\Documents\erk`
-(OneDrive DIŞI — kullanıcı OneDrive istemedi; `ERK_DATA_DIR`, yoksa eski ad `ALPHA_DATA_DIR` ezer). Tercihler +
+(OneDrive DIŞI — kullanıcı OneDrive istemedi; `ERK_DATA_DIR` ezer). Tercihler +
 error.log + sesler `%LOCALAPPDATA%\erk` (APP_DIR).
-**alpha → erk taşıması (config.py, import anında, `_adopt_dir`):** `X\erk` varsa o kullanılır (boşsa silinip yerine
-geçilir); yoksa `X\alpha` → `X\erk` bir kez `os.rename` (Documents ve LOCALAPPDATA için ayrı ayrı). Eski alpha açıksa
-(`\\.\pipe\alpha-dashboard-<crc32(Documents\alpha)>` borusu var) ya da yeniden adlandırma olmazsa o oturum eski
-klasörle çalışır, sonraki açılışta yeniden denenir. Sıra KESİN: (1) Documents\erk, (2) Documents\alpha'yı yeniden
-adlandır, (3) ancak ikisi de yoksa (DATA_FILE yok) `migrate_old_data` eski kopyalardan bir kez kopyalar: önce
-OneDrive\Belgeler\alpha (2.0 önizlemesinin 16 Kasım kopyası; içinde `_alpha_key.php` de var), yoksa 1.x'in
-%LOCALAPPDATA%\alpha'sı (artık APP_DIR). data.json varken ASLA kopyalanmaz (smoke "veri taşıma" adımı sahte ev /
-OneDrive klasörleriyle kanıtlar). Tercihlerde ve kayıtlarda eski klasörün içini gösteren tam yollar (`backup_dir` vb.)
-`config.remap_path` ile yeni klasöre çevrilir (görseller zaten yalnızca dosya adıyla saklanır).
 Testte LOCALAPPDATA değiştirince `python` (py launcher) bozuluyor: tam yol
 `%LOCALAPPDATA%\Python\pythoncore-3.14-64\python.exe`'yi değişkeni değiştirmeden önce al.
 **Web (web.py):** telefondan bakmak için gündemin anlık görüntüsü (dün..+30 gün program, geciken/tarihsiz işler,
-yaklaşanlar) `https://www.yigitozsoy.net/api/alpha.php`'ye gider. Hedef / vision board / not / ekonomi kaydı ASLA
+yaklaşanlar) `https://www.yigitozsoy.net/api/erk.php`'ye gider. Hedef / vision board / not / ekonomi kaydı ASLA
 gitmez (kullanıcı kesin istemedi; smoke testi denetler). Site çıplak alan adını www.'ya 301'ler (POST kaybolur);
-WebSync yönlendirmede adresi kendisi günceller. Anahtar prefs web_key, `X-Alpha-Key` başlığı; sunucuda yalnızca
-sha256'sı (`api/_alpha_key.php`). **Sunucu tarafı adları (api/alpha.php, X-Alpha-Key, _alpha_key.php, localStorage
-`alpha_*` anahtarları) eski adla KALIR**: sunucuyu kullanıcı elle günceller, değiştirme. Sayfa: sitede `alpha/index.html`
-(salt okunur, anahtar #k= ile bir kez gelir, localStorage'da önbellek); erk adlı kopyası repoda
-`erk-site-yukle/erk/` (index.html, logo.png, icon-192/512.png, manifest.webmanifest, .htaccess) — kullanıcı sitenin
-kökündeki `erk/` klasörüne yükleyecek. Yüklenince `web.PAGE_DIR = "erk"` yapılabilir (telefon bağlantısı o sayfayı
-açar; aynı alan adı olduğu için kayıtlı anahtar iki sayfada da geçerli). Masaüstündeki Bugün / Program değişirse
+WebSync yönlendirmede adresi kendisi günceller. Anahtar prefs web_key, `X-Erk-Key` başlığı; sunucuda yalnızca
+sha256'sı (`api/_erk_key.php`, gitignore). Sunucu betiği `api/erk.php` (veri `api/_state/erk.json`, gövdede app = "erk"
+olmalı). Sayfa: sitede `erk/index.html` (web.PAGE_DIR)
+(salt okunur, anahtar #k= ile bir kez gelir, localStorage'da `erk_*` önbellek); kopyası repoda
+`erk-site-yukle/erk/` (index.html, logo.png, icon-192/512.png, manifest.webmanifest, .htaccess). Sunucuyu kullanıcı
+elle yükler. Masaüstündeki Bugün / Program değişirse
 index.html'i hem site klasöründe hem erk-site-yukle'de güncelle. Site: `Desktop\yigitozsoy.net` (Apache + PHP, kullanıcı
-sunucuya elle yükler; yedek: gizli GitHub deposu yigitozsoy/yigitozsoy.net, archive/ ve api/_auth.php + _alpha_key.php hariç).
+sunucuya elle yükler; yedek: gizli GitHub deposu yigitozsoy/yigitozsoy.net, archive/ ve api/_auth.php + _erk_key.php hariç).
 Test `LOCALAPPDATA` **ve** `ERK_DATA_DIR`'ı geçici klasöre çevirir, offscreen çizer (`QT_QPA_FONTDIR` =
 Windows\Fonts, yoksa yazılar kutu çıkar). Kendi betiklerinde ikisini de ayarla: yalnızca LOCALAPPDATA verirsen gerçek
-Belgeler\erk'e yazarsın (ve gerçek Belgeler\alpha'yı yeniden adlandırırsın). Sesler offscreen'de ya da `ERK_MUTE=1`
-iken çalmaz; `ERK_OFFLINE=1` ağa çıkmaz (eski ALPHA_* adları da okunur).
+Belgeler\erk'e yazarsın. Sesler offscreen'de ya da `ERK_MUTE=1`
+iken çalmaz; `ERK_OFFLINE=1` ağa çıkmaz.
 
 ## Yapı
 ```
@@ -112,7 +102,7 @@ erk/
                   section "profile" = ad / bilgi satırı / iletişim / Hakkımda, bölüm başlığı + çizgi, detail satırları
                   madde işareti). Hayal sayfasında şu anki maddeler soluk (ayrıntısız) görünür; aynı bölümde aynı
                   kurumlu hayal maddesi varsa gizlenir. Sağ tık > Gerçekleşti (realize) / Hedefe çevir (to_goal,
-                  başlık "kurum — unvan"). Kullanıcının CV'si cv_for_alpha.pdf (gitignore) → gerçek veriye bir kez
+                  başlık "kurum — unvan"). Kullanıcının CV'si cv_for_erk.pdf (gitignore) → gerçek veriye bir kez
                   içe alındı (src "cv_pdf"). Bölüm "experience" ekranda "İş tecrübeleri"; gönüllü işler "volunteer".
                   Şu anki maddede hide_dream=True → hayal sayfasında hiç çıkmaz (sağ tık > Hayalimdeki CV'de gösterme).
                   Telefona gitmez.
@@ -121,7 +111,7 @@ erk/
                   sınava yazılır). Eğitim görevlerinin sağ tık menüsünde "Sınavlara taşı" (pages.task_to_exam).
   dialogs.py      Seçenekler: solda kategoriler (Genel, Bugün ve program, Hatırlatıcılar, Spor ve beslenme,
                   Masaüstü widget'ı, Telefonda aç, Veriler, Hakkında), sağda QStackedWidget. category()/section().
-  web sayfası     site klasöründe alpha/index.html (erk kopyası erk-site-yukle/erk/) masaüstü temasının (theme.py renkleri, Card/Row/Block,
+  web sayfası     site klasöründe erk/index.html (kopyası erk-site-yukle/erk/) masaüstü temasının (theme.py renkleri, Card/Row/Block,
                   MonthCalendar) birebir HTML kopyası: yalnızca Bugün + Haftalık program. Metinler, ikon yolları,
                   hafta/ay adları anlık görüntüyle (web.build_snapshot v2: days[blocks, prog], tasks, deadlines, cal,
                   str, icons) gelir. Masaüstünde bu iki sayfa değişirse web.py + index.html'i de güncelle.
@@ -155,7 +145,7 @@ erk/
   not kartı      grades_view.GradesCard: ExamBar (sınav ağırlığı kadar parça, not dolumu), kalem = sınav çipleri, ⋮ = Dönemi
                   bitir, Hedef AGNO sabit (prefs agno_goal). Sınav türleri grades.EXAM_KINDS (kayıtta Türkçe ad, ekranda
                   dile göre; "Midterm 2" → "Vize 2"). store.add_exam aynı ders + türdeki boş sınavı doldurur (yenisini açmaz).
-  grades.py       ANO / AGNO = kullanıcının Excel'i (assets/lectures_for_alpha.xlsx, .gitignore'da; kök assets/ = kişisel kaynaklar: CV PDF, Excel, muscle-body, hepsi gitignore, pakete girmez). Harf → puan grades.points()
+  grades.py       ANO / AGNO = kullanıcının Excel'i (assets/lectures_for_erk.xlsx, .gitignore'da; kök assets/ = kişisel kaynaklar: CV PDF, Excel, muscle-body, hepsi gitignore, pakete girmez). Harf → puan grades.points()
                   (varsayılan YÖK, prefs grade_points farklılar; Seçenekler > Genel > Not sistemi). transcript koleksiyonu,
                   dersler letter / guess / target / retake. Excel'in "*ad*" eşleşmesi yerine tam ad → kod → en kısa
                   içeren. read_transcript_xlsx openpyxl'siz (zip+XML), "AGNO" satırında durur. Sonuçlar Excel'le
@@ -295,12 +285,7 @@ Spor sayfasında "Besin kütüphanesi" kartı (sağ tık / ⋮ > Bugüne ekle…
   çevirileri, kullanılmayan görüntü / platform eklentileri): kurulum ~23 MB. TLS için web.WebSync Schannel seçer.
   Sihirbaz gamma ile aynı: `WizardStyle=modern dynamic windows11 hidebevels` (Inno 6.7+), görseller
   make_meta.py'de logodan üretilir (build\wizard, Pillow gerekir; CI pip satırında var), lisans sayfası yok.
-- **Kurulum alpha'dan yükseltir:** AppId (`{F860D8FB-…}`) alpha ile aynı, DEĞİŞTİRME; `UsePreviousAppDir=no` /
-  `UsePreviousGroup=no` → `{autopf}\erk`. [Code]: eski klasör kaldırma kaydının `Inno Setup: App Path`'inden okunur,
-  açık alpha.exe kapatılır (taskkill, 3 sn sonra /F), kurulum bitince eski klasör silinir (adı alpha ise DelTree,
-  değilse yalnızca kurulumun dosyaları), Run'daki `alpha` değeri `erk`'e çevrilir; [InstallDelete] eski Başlat grubu
-  ve masaüstü `alpha.lnk`'i, [Registry] App Paths\alpha.exe / Applications\alpha.exe'yi siler. Veri klasörlerine
-  kurulum dokunmaz (erk ilk açılışta kendisi taşır).
+- AppId (`{F860D8FB-…}`) kurulu sürümle aynı kalmalı (yerinde güncelleme), DEĞİŞTİRME; kurulum veri klasörlerine dokunmaz.
 - Yeni sürüm: sürümü artır → commit → push → `git tag vX.Y.Z` → `git push origin vX.Y.Z`; GitHub Actions
   (`.github/workflows/build.yml`) testi koşup derler ve Releases'a ekler (CI'da body_frames.zip yok → Body3D;
   yerel derlemedeki kurulum sürüme --clobber ile yüklenir). Yayından önce onay al.
